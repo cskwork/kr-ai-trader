@@ -1,0 +1,23 @@
+title = "kr-ai-trader gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "kis-app-key"
+description = "KIS App Key"
+regex = '''(?i)KIS_APP_KEY\s*=\s*['"]?P[A-Za-z0-9]{30,}['"]?'''
+tags = ["secret", "kis"]
+
+[[rules]]
+id = "kis-app-secret"
+description = "KIS App Secret"
+regex = '''(?i)KIS_APP_SECRET\s*=\s*['"]?[A-Za-z0-9+/=]{80,}['"]?'''
+tags = ["secret", "kis"]
+
+[allowlist]
+paths = [
+    '''\.env\.example''',
+    '''docs/.*''',
+    '''README\.md''',
+]

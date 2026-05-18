@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kr-ai-trader"
+version = "0.1.0"
+description = "LLM-driven automated trading template for Korean retail investors (KIS Open API + multi-LLM)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "kr-ai-trader contributors" }]
+keywords = ["trading", "korea", "kis", "llm", "claude", "ollama", "algotrading"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "rich>=13.7",
+    "python-dotenv>=1.0",
+    "tenacity>=8.2",
+    "structlog>=24.1",
+    "python-kis>=2.1",
+    "pykrx>=1.0.45",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "vectorbt>=0.26",
+    "anthropic>=0.40",
+    "openai>=1.40",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "respx>=0.21",
+]
+
+[project.scripts]
+kr-trader = "kr_ai_trader.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/your-org/kr-ai-trader"
+Issues = "https://github.com/your-org/kr-ai-trader/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true

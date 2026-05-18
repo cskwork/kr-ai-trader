@@ -1,0 +1,47 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+build/
+dist/
+
+# Cache & data
+cache/
+.cache/
+data/raw/
+data/processed/
+*.parquet
+*.feather
+*.db
+*.sqlite*
+
+# Journal & logs (may contain account info)
+journal/
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Ollama models
+ollama_models/
+
+# Backtest outputs
+backtest_results/
