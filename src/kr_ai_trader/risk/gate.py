@@ -103,7 +103,15 @@ class RiskGate:
             violated.add(9)
 
         # 1. Capital Preservation — 일일 손실 서킷브레이커
+        # halt(완만) → 신규 매수 차단; flatten(심각) → 매수 차단 + 청산 권고.
+        # 둘은 독립 검사. halt < flatten 은 Settings 로드 시 보장됨.
         applied.add(1)
+        if day_pnl_pct <= -abs(self.s.daily_loss_halt_pct) and order.side == OrderSide.buy:
+            reasons.append(
+                f"daily loss {day_pnl_pct:.2f}% breached halt threshold "
+                f"{-self.s.daily_loss_halt_pct}%; new buys halted"
+            )
+            violated.add(1)
         if day_pnl_pct <= -abs(self.s.daily_loss_flatten_pct):
             reasons.append(
                 f"daily loss {day_pnl_pct:.2f}% breached flatten threshold "
@@ -112,12 +120,6 @@ class RiskGate:
             violated.add(1)
             if order.side == OrderSide.buy:
                 reasons.append("buy blocked under flatten regime")
-        elif day_pnl_pct <= -abs(self.s.daily_loss_halt_pct) and order.side == OrderSide.buy:
-            reasons.append(
-                f"daily loss {day_pnl_pct:.2f}% breached halt threshold "
-                f"{-self.s.daily_loss_halt_pct}%; new buys halted"
-            )
-            violated.add(1)
 
         notional = last_price * order.quantity
 
@@ -149,7 +151,12 @@ class RiskGate:
                     for p in positions
                     if self.sector_map.get(p.ticker) == sector
                 )
-                sector_pct = (sector_value + notional) / portfolio_equity * 100
+                # 동일 ticker 의 기존 가치는 새 노출 합산 시 한 번만 계산 (위 new_value 와 동일 논리).
+                same_ticker_existing = sum(
+                    p.market_value for p in positions if p.ticker == order.ticker
+                )
+                projected_sector = sector_value - same_ticker_existing + new_value
+                sector_pct = projected_sector / portfolio_equity * 100
                 if sector_pct > self.s.max_sector_pct:
                     reasons.append(
                         f"sector {sector} would be {sector_pct:.2f}% > "

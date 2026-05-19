@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -86,27 +85,52 @@ class KISBroker(Broker):
         except Exception as e:
             raise BrokerError(f"KIS get_quote({ticker}) failed: {e}") from e
 
+    @staticmethod
+    def _scrub(msg: str) -> str:
+        """upstream 에러 메시지에서 자격증명 흔적 제거 + 길이 클립."""
+        for needle in ("appkey", "appsecret", "Authorization", "secretkey"):
+            msg = msg.replace(needle, "***")
+        return msg[:200]
+
     async def place_order(self, order: Order) -> Order:
+        """KIS 주문 제출.
+
+        - 결정론적 broker_order_id 가 응답에서 오면 사용, 없으면 client_order_id 기반 대체키.
+        - **transport/auth 오류는 BrokerError 로 전파** (이전: rejected 로 가려져 운영자 모름).
+        - broker 가 명시적 rejection 결과를 주면 그것만 `rejected` 처리.
+        """
         try:
             stock = self._client.stock(order.ticker)
-            kwargs = {"qty": order.quantity}
-            if order.limit_price is not None:
-                kwargs["price"] = order.limit_price
-            result = stock.buy(**kwargs) if order.side == OrderSide.buy else stock.sell(**kwargs)
-            order.broker_order_id = str(getattr(result, "order_no", uuid.uuid4().hex[:12]))
-            order.status = "filled" if getattr(result, "filled", True) else "pending"
-            order.filled_quantity = int(getattr(result, "filled_qty", order.quantity))
-            order.filled_avg_price = float(getattr(result, "avg_price", order.limit_price or 0.0))
-            order.created_at = datetime.now(timezone.utc)
-            return order
         except Exception as e:
+            raise BrokerError(f"KIS stock lookup failed: {self._scrub(str(e))}") from e
+
+        kwargs: dict[str, float | int] = {"qty": order.quantity}
+        if order.limit_price is not None:
+            kwargs["price"] = order.limit_price
+
+        try:
+            result = stock.buy(**kwargs) if order.side == OrderSide.buy else stock.sell(**kwargs)
+        except Exception as e:
+            # 네트워크/타임아웃/인증 오류 → 호출부 (Executor) 에서 알람·정지 결정.
+            raise BrokerError(f"KIS place_order transport error: {self._scrub(str(e))}") from e
+
+        # python-kis 응답에 명시적 실패 플래그가 있으면 rejected 로 표기.
+        explicit_reject = getattr(result, "rejected", False) or getattr(result, "error", None)
+        if explicit_reject:
             order.status = "rejected"
-            order.rejected_reason = str(e)
+            order.rejected_reason = self._scrub(str(explicit_reject))
             return order
+
+        order.broker_order_id = str(getattr(result, "order_no", None) or f"kis-{order.client_order_id}")
+        order.status = "filled" if getattr(result, "filled", True) else "pending"
+        order.filled_quantity = int(getattr(result, "filled_qty", order.quantity))
+        order.filled_avg_price = float(getattr(result, "avg_price", order.limit_price or 0.0))
+        order.created_at = datetime.now(timezone.utc)
+        return order
 
     async def cancel_order(self, broker_order_id: str) -> bool:
         try:
             self._client.account().cancel(order_no=broker_order_id)
             return True
-        except Exception:
-            return False
+        except Exception as e:
+            raise BrokerError(f"KIS cancel_order failed: {self._scrub(str(e))}") from e

@@ -65,9 +65,12 @@ class Moderator:
         self.llm = llm
 
     async def decide(self, *, ticker: str, market_context: str) -> TradeProposal | None:
+        # market_context 는 호출자가 이미 json.dumps 한 string. 길이만 제한 (프롬프트 인젝션
+        # 표면 축소). 한국 주식 ticker 는 6자리 숫자 보장.
+        ctx = market_context[:4000]
         user_prompt = (
             f"종목코드: {ticker}\n\n"
-            f"시장 컨텍스트:\n{market_context}\n\n"
+            f"시장 컨텍스트:\n{ctx}\n\n"
             "위 정보를 바탕으로 매매 제안을 JSON 으로 출력하세요."
         )
         bull_task = self.llm.propose_structured(
@@ -78,26 +81,39 @@ class Moderator:
         )
         bull, bear = await asyncio.gather(bull_task, bear_task, return_exceptions=True)
 
+        # 두쪽 모두 실패하면 (LLM 사이드 장애) decide 가 None 을 반환하도록 short-circuit.
+        if isinstance(bull, BaseException) and isinstance(bear, BaseException):
+            return None
+
+        def _opinion(side: object) -> str:
+            if isinstance(side, BaseException):
+                return f"(실패: {type(side).__name__})"
+            # LLMResponse.data 만 노출, raw_text 등은 차단.
+            return str(getattr(side, "data", side))
+
         debate_user = (
             f"종목: {ticker}\n\n"
-            f"Bull 의견: {bull.data if not isinstance(bull, Exception) else f'(실패: {bull})'}\n\n"
-            f"Bear 의견: {bear.data if not isinstance(bear, Exception) else f'(실패: {bear})'}\n\n"
+            f"Bull 의견: {_opinion(bull)}\n\n"
+            f"Bear 의견: {_opinion(bear)}\n\n"
             "두 의견을 종합해 최종 매매 제안과 진행 여부(proceed/reject)를 결정하세요."
         )
         debate = await self.llm.propose_structured(
             system=_RISK_SYSTEM, user=debate_user, schema=DEBATE_SCHEMA
         )
-        if debate.data["verdict"] != "proceed":
+        if debate.data.get("verdict") != "proceed":
             return None
-        p = debate.data["agreed_proposal"]
-        if p["side"] == "hold":
+        p = debate.data.get("agreed_proposal")
+        if not isinstance(p, dict) or p.get("side") in (None, "hold"):
             return None
-        return TradeProposal(
-            ticker=p["ticker"],
-            side=p["side"],
-            conviction=float(p["conviction"]),
-            size_pct=float(p["size_pct"]),
-            thesis=p["thesis"],
-            risks=list(p["risks"]),
-            stop_loss_pct=p.get("stop_loss_pct"),
-        )
+        try:
+            return TradeProposal(
+                ticker=str(p["ticker"]),
+                side=p["side"],
+                conviction=float(p["conviction"]),
+                size_pct=float(p["size_pct"]),
+                thesis=str(p["thesis"]),
+                risks=[str(r) for r in p["risks"]],
+                stop_loss_pct=float(p["stop_loss_pct"]) if p.get("stop_loss_pct") is not None else None,
+            )
+        except (KeyError, TypeError, ValueError):
+            return None

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import uuid
+import hashlib
 from datetime import datetime, timezone
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 import structlog
 
@@ -14,6 +15,13 @@ from ..journal.recorder import JournalRecorder
 from ..risk.gate import RiskGate
 
 log = structlog.get_logger(__name__)
+
+KST = ZoneInfo("Asia/Seoul")
+
+
+def _qty_bucket(qty: int) -> int:
+    """수량을 코스피 board lot(1주) 기준 그대로 사용. 추후 변경 시 여기만 수정."""
+    return qty
 
 
 class Executor:
@@ -31,10 +39,19 @@ class Executor:
         self.strategy_name = strategy_name
 
     @staticmethod
-    def _make_idempotent_id(strategy: str, ticker: str) -> str:
-        today = datetime.now(timezone.utc).strftime("%Y%m%d")
-        suffix = uuid.uuid4().hex[:8]
-        return f"{strategy}-{today}-{ticker}-{suffix}"
+    def make_idempotent_id(
+        strategy: str, ticker: str, side: str, qty: int, *, when: datetime | None = None
+    ) -> str:
+        """결정론적 client_order_id.
+
+        동일 (strategy, ticker, KST trading date, side, qty_bucket) 재전송 시 같은 키를 생성하여
+        PaperBroker/KIS 양쪽에서 dedup 가능. uuid/wall-clock 미포함.
+        """
+        moment = (when or datetime.now(timezone.utc)).astimezone(KST)
+        date_s = moment.strftime("%Y%m%d")
+        payload = f"{strategy}|{ticker}|{date_s}|{side}|{_qty_bucket(qty)}"
+        digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+        return f"{strategy}-{date_s}-{ticker}-{side}-{digest}"
 
     async def execute(
         self,
@@ -45,16 +62,42 @@ class Executor:
         side: Literal[OrderSide.buy, OrderSide.sell]
         side = OrderSide.buy if proposal.side == "buy" else OrderSide.sell
 
+        # LLM 환각 가드: universe 외 티커는 broker.get_quote 호출 전에 차단.
+        if proposal.ticker not in self.risk_gate.universe:
+            reasons = [f"ticker {proposal.ticker} not in universe (pre-quote guard)"]
+            log.warning("risk_gate.pre_quote_rejected", ticker=proposal.ticker, reasons=reasons)
+            await self.journal.record_rejection(proposal=proposal, reasons=reasons)
+            return None
+
         cash = await self.broker.get_cash()
         positions = await self.broker.get_positions()
         quote = await self.broker.get_quote(proposal.ticker)
         equity = cash + sum(p.market_value for p in positions)
 
         target_notional = equity * (proposal.size_pct / 100.0)
-        qty = max(1, int(target_notional // quote.price))
+        qty = int(target_notional // quote.price)
+        # 매수: 1주 미만 노출은 건너뜀. 매도: 보유 수량을 초과하지 않도록 clamp.
+        if side == OrderSide.buy:
+            if qty < 1:
+                reasons = [
+                    f"target_notional {target_notional:.0f} < price {quote.price:.0f}; "
+                    "skipped (below 1 share)"
+                ]
+                log.info("executor.skipped", ticker=proposal.ticker, reasons=reasons)
+                await self.journal.record_rejection(proposal=proposal, reasons=reasons)
+                return None
+        else:
+            held = sum(p.quantity for p in positions if p.ticker == proposal.ticker)
+            qty = max(0, min(qty if qty > 0 else held, held))
+            if qty == 0:
+                reasons = [f"no position to sell for {proposal.ticker}"]
+                await self.journal.record_rejection(proposal=proposal, reasons=reasons)
+                return None
 
         order = Order(
-            client_order_id=self._make_idempotent_id(self.strategy_name, proposal.ticker),
+            client_order_id=self.make_idempotent_id(
+                self.strategy_name, proposal.ticker, side.value, qty
+            ),
             ticker=proposal.ticker,
             side=side,
             quantity=qty,
