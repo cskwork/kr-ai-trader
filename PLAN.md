@@ -1,6 +1,6 @@
 # PLAN.md — 미구현 작업 로드맵
 
-> 골격 + **실시장 풀사이클 검증** 까지 완료 (2026-05-19, `log/changelog-2026-05-19.md`). pykrx OHLCV → Bull+Bear+RiskOfficer (`claude -p --json-schema`) → RiskGate → PaperBroker → Journal 체인 동작 확인.
+> 골격 + **실시장 풀사이클 검증** + **Tauri 데스크톱 관측 UI** 까지 완료. pykrx OHLCV → Bull+Bear+RiskOfficer (`claude -p --json-schema`) → RiskGate → PaperBroker → Journal 체인이 FastAPI 백엔드를 통해 데스크톱 앱(`desktop/app`) 의 4-뷰 (Dashboard / Run cycle / Journal / Observability) 로 실시간 관측 가능. `log/changelog-2026-05-19.md` 참고.
 >
 > 이어서 작업할 때 이 파일을 체크리스트로 사용하세요. 끝난 항목은 `[x]` 로 체크하고 PR 또는 커밋 메시지에 항목 번호를 인용하세요.
 

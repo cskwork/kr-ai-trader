@@ -1,10 +1,34 @@
 # kr-ai-trader
 
-한국 리테일 투자자를 위한 LLM 기반 자동매매 봇 템플릿. **모의투자 디폴트**, **결정론 리스크 게이트**, **멀티 LLM 백엔드**(Claude API / OpenAI API / Claude Code CLI / Codex CLI / Ollama).
+한국 리테일 투자자를 위한 LLM 기반 자동매매 봇 템플릿. **모의투자 디폴트**, **결정론 리스크 게이트**, **멀티 LLM 백엔드**(Claude API / OpenAI API / Claude Code CLI / Codex CLI / Ollama), **Tauri 데스크톱 관측 UI**.
 
 [![CI](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml)
 
 > **DISCLAIMER**: 이 코드는 교육/연구 목적입니다. 실제 자금 손실 책임은 전적으로 사용자에게 있습니다. 자세한 내용은 [DISCLAIMER.md](./DISCLAIMER.md) 참고.
+
+## 데스크톱 앱 (Tauri)
+
+`desktop/app/` 에 Vite + React + TypeScript + Tauri 2.x 로 4-뷰 관측 UI 가 들어 있습니다.
+
+| 탭 | 보여주는 것 |
+|---|---|
+| **Dashboard** | LLM provider/모델, 유니버스 크기, 리스크 파라미터, HALT 상태, 포지션 테이블, 현재 equity/cash |
+| **Run cycle** | 티커 입력 → WebSocket 스트림 → `settings_loaded → features_computed → moderator_started → proposal_built (thesis + risks) → risk_gate_decision (accepted + reasons) → order_placed/rejected → cycle_done` 까지 단계별 카드로 표시 |
+| **Journal** | 오늘 자 `journal/YYYY-MM-DD.md` 를 그대로 렌더링. 모든 매매 의사결정의 thesis/risks/거부 사유 보존 |
+| **Observability** | 3초 주기 equity 샘플링 sparkline + 백엔드 상태 메트릭 |
+
+### 실행
+
+```bash
+# 1. Python 백엔드 (8765 포트)
+pip install -e ".[api]"
+make api
+
+# 2. 데스크톱 앱 (다른 터미널)
+make desktop   # 또는 cd desktop/app && pnpm install && pnpm tauri dev
+```
+
+데스크톱 앱은 백엔드(127.0.0.1:8765) 에 HTTP + WebSocket 으로 연결합니다. `VITE_API_BASE` 환경변수로 백엔드 주소 오버라이드 가능.
 
 ## 실시장 풀사이클 검증
 

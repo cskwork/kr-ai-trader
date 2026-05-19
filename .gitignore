@@ -45,3 +45,12 @@ ollama_models/
 
 # Backtest outputs
 backtest_results/
+
+# Node / Tauri
+node_modules/
+desktop/app/dist/
+desktop/app/src-tauri/target/
+desktop/app/src-tauri/gen/
+
+# pyenv
+.python-version
