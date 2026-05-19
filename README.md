@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml)
 
-투자 의사결정 원칙은 자매 리포지토리 **[cskwork/investment-agent-rules](https://github.com/cskwork/investment-agent-rules)** — Buffett, Munger, Graham, Lynch, Dalio, Marks, Soros, Druckenmiller, Simons, Greenblatt 에서 추출한 10대 계명 + 한국시장 오버레이 + AI 봇 시행 매핑.
+투자 의사결정 원칙은 자매 리포지토리 **[cskwork/investment-agent-rules](https://github.com/cskwork/investment-agent-rules)** — Buffett, Munger, Graham, Lynch, Dalio, Marks, Soros, Druckenmiller, Simons, Greenblatt 에서 추출한 10대 계명 + 한국시장 오버레이 + AI 봇 시행 매핑. **kr-ai-trader 코드에 어느 계명이 어디에서 강제되는지** 는 [docs/principles-mapping.md](./docs/principles-mapping.md) 참고 (4 enforced / 5 partial / 1 missing).
 
 > **DISCLAIMER**: 이 코드는 교육/연구 목적입니다. 실제 자금 손실 책임은 전적으로 사용자에게 있습니다. 자세한 내용은 [DISCLAIMER.md](./DISCLAIMER.md) 참고.
 
