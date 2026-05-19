@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 import structlog
@@ -32,7 +32,7 @@ class Executor:
 
     @staticmethod
     def _make_idempotent_id(strategy: str, ticker: str) -> str:
-        today = datetime.utcnow().strftime("%Y%m%d")
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
         suffix = uuid.uuid4().hex[:8]
         return f"{strategy}-{today}-{ticker}-{suffix}"
 

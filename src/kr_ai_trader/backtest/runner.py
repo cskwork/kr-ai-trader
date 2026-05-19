@@ -34,7 +34,7 @@ def run_backtest(
     slippage_pct: float = 0.0005,   # 슬리피지 5bp
     output_dir: Path | str = "backtest_results",
 ) -> BacktestResult:
-    import vectorbt as vbt          # type: ignore[import-not-found]
+    import vectorbt as vbt  # type: ignore[import-not-found]
 
     pf = vbt.Portfolio.from_signals(
         close=prices,

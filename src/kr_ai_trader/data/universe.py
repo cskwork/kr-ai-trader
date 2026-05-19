@@ -33,7 +33,7 @@ def load_universe(name: str = "kospi200", file_path: Path | None = None) -> froz
         )
 
     try:
-        from pykrx import stock as krx_stock     # type: ignore[import-not-found]
+        from pykrx import stock as krx_stock  # type: ignore[import-not-found]
 
         if name == "kospi200":
             tickers = krx_stock.get_index_portfolio_deposit_file("1028")

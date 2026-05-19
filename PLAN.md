@@ -1,6 +1,6 @@
 # PLAN.md — 미구현 작업 로드맵
 
-> 현재 커밋은 **골격(skeleton)** 입니다. 핵심 추상화(Broker, LLM 5종, Risk Gate, Moderator, Executor, Journal, Backtest 래퍼)는 작성되어 있고, 데이터·실행 루프·테스트·CI 가 남았습니다.
+> 골격 + **실시장 풀사이클 검증** 까지 완료 (2026-05-19, `log/changelog-2026-05-19.md`). pykrx OHLCV → Bull+Bear+RiskOfficer (`claude -p --json-schema`) → RiskGate → PaperBroker → Journal 체인 동작 확인.
 >
 > 이어서 작업할 때 이 파일을 체크리스트로 사용하세요. 끝난 항목은 `[x]` 로 체크하고 PR 또는 커밋 메시지에 항목 번호를 인용하세요.
 
@@ -26,10 +26,12 @@
 
 현재 `data/universe.py` 만 있음. 신호 생성을 위한 입력 데이터가 없으면 에이전트가 무의미.
 
-- [ ] **1.1** `data/prices.py` — pykrx + KIS WS 가격 수집
-  - `get_ohlcv(ticker, start, end)` (pykrx, 백테용)
-  - `subscribe_realtime(tickers, on_tick)` (KIS WebSocket, 라이브용)
-  - 캐싱: `cache/prices/{ticker}.parquet`
+- [x] **1.1** `data/prices.py` — pykrx OHLCV + `compute_features` (RSI/SMA/모멘텀) + parquet 캐시. KIS WS 실시간 구독은 미구현
+  - `get_ohlcv(ticker, start, end)` (pykrx) ✓
+  - `latest_quote(ticker)` ✓
+  - `compute_features(ticker)` → `PriceSummary` (RSI14, SMA5/20, pct_change_1/5/20d) ✓
+  - 캐싱: `cache/prices/{ticker}.parquet` ✓
+  - 미구현: `subscribe_realtime(tickers, on_tick)` (KIS WebSocket, 라이브용)
 - [ ] **1.2** `data/dart.py` — DART OpenAPI 공시 수집
   - https://opendart.fss.or.kr/ API 키 발급 (`DART_API_KEY`)
   - 최근 N일 공시 → 종목별 dict
@@ -40,19 +42,16 @@
   - 종목별 최근 N건 본문 + 발행시간
 - [ ] **1.4** `data/sector_map.py` — 티커→섹터 매핑 (KRX 섹터 분류)
   - `RiskGate.sector_map` 으로 주입 → 섹터 한도 활성화
-- [ ] **1.5** `data/calendar.py` — KRX 휴장일·동시호가 시간 처리
-  - 거래시간(09:00–15:30 KST), 동시호가(08:30–09:00, 15:20–15:30)
-  - 휴장일 캐시
+- [x] **1.5** `data/calendar.py` — KRX 영업일/거래시간/동시호가/이전영업일. pykrx fallback 포함
 
 ## 2. 실행 루프 스크립트 (우선순위 1)
 
 `Makefile` 의 `paper`, `live`, `smoke-*`, `backtest` 가 호출하는 실제 스크립트.
 
-- [ ] **2.1** `scripts/smoke_llm.py` — `get_llm().healthcheck()` + dummy proposal 1회
+- [x] **2.1** `scripts/smoke_llm.py` — `get_llm().healthcheck()` + PROPOSAL_SCHEMA 더미 1회 (검증됨)
 - [ ] **2.2** `scripts/smoke_kis.py` — KIS 모의계좌 현재가 조회 + 잔고 조회 + 1주 매수/매도
-- [ ] **2.3** `scripts/run_paper.py` — 페이퍼 트레이딩 메인 루프
-  - 유니버스 로드 → 상위 N종목 컨텍스트 빌드 → Moderator → Executor → 저널
-  - 5분 인터벌(`asyncio.sleep`), HALT 파일 체크
+- [x] **2.3** `scripts/run_paper.py` — `--top-n N --cycles M --sleep S --json-out path` 풀사이클 실행
+- [x] **2.7** `scripts/demo_buy_then_sell.py` — 시드 매수 → LLM 매도 → 체결까지 단일 흐름 검증용
 - [ ] **2.4** `scripts/run_live.py` — `KIS_LIVE=1` 가드 + paper 와 동일 로직
 - [ ] **2.5** `scripts/run_backtest.py` — typer CLI, LLM 신호 사전 생성 후 vectorbt 호출
 - [ ] **2.6** `src/kr_ai_trader/execution/reconciliation.py` — 1분마다 KIS 잔고 ↔ 내부 ledger 비교, 불일치 시 알람+정지
@@ -68,21 +67,19 @@
 
 ## 4. 테스트 (우선순위 1, 커밋 전 필수)
 
-- [ ] **4.1** `tests/test_risk_gate.py`
+- [x] **4.1** `tests/test_risk_gate.py` (9 케이스, 0.08초)
   - 화이트리스트 외 티커 거부
   - max_position_pct 초과 거부
   - daily_loss_halt 시 매수만 거부, 매도는 허용
   - daily_loss_flatten 시 매수 거부
   - 레버리지=0 + cash 부족 시 거부
   - HALT 파일 존재 시 거부
-- [ ] **4.2** `tests/test_paper_broker.py`
+- [x] **4.2** `tests/test_paper_broker.py` (5 케이스)
   - 매수 → 잔고 차감 + 포지션 생성
   - 매도 → 거래세 0.18% 반영 + 포지션 감소
   - 멱등: 동일 client_order_id 2회 호출 결과 동일
   - 잔고 부족 매수 거부
-- [ ] **4.3** `tests/test_llm_extract.py`
-  - `extract_json` 코드펜스 처리
-  - `validate_against_schema` 필수 필드/타입 검사
+- [x] **4.3** `tests/test_llm_extract.py` (8 케이스: plain/fence/숫자 타입 등)
 - [ ] **4.4** `tests/test_llm_providers.py` (mock httpx/subprocess)
   - Ollama 응답 파싱
   - Claude Code CLI envelope 파싱
@@ -95,11 +92,7 @@
 
 ## 5. CI / 배포 (우선순위 2)
 
-- [ ] **5.1** `.github/workflows/ci.yml`
-  - matrix: Python 3.11, 3.12
-  - steps: pip install `.[dev]` → ruff → mypy → pytest
-- [ ] **5.2** `.github/workflows/secret-scan.yml`
-  - gitleaks action on push & PR
+- [x] **5.1** `.github/workflows/ci.yml` — 3.10/3.11/3.12 matrix + ruff + pytest + gitleaks 잡
 - [ ] **5.3** `.github/workflows/docker.yml` (선택)
   - 컨테이너 빌드 & ghcr.io 푸시
 
@@ -113,7 +106,7 @@
 
 ## 7. 잔여 개선 (우선순위 3)
 
-- [ ] **7.1** `datetime.utcnow()` deprecation 제거 → `datetime.now(UTC)` 일괄 교체
+- [x] **7.1** `datetime.utcnow()` deprecation 제거 → `datetime.now(timezone.utc)` 일괄 교체
 - [ ] **7.2** `jsonschema` 패키지 도입 → `validate_against_schema` 강화 (enum, minimum/maximum, additionalProperties 등)
 - [ ] **7.3** Prompt caching: Anthropic `cache_control` + OpenAI prompt caching 활성화 (시스템 프롬프트·종목 메타)
 - [ ] **7.4** LiteLLM 백엔드 옵션 추가 (선택)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 from typing import Literal
 
@@ -10,7 +10,7 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class LLMProviderName(StrEnum):
+class LLMProviderName(str, Enum):
     anthropic_api = "anthropic_api"
     openai_api = "openai_api"
     claude_code_cli = "claude_code_cli"
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5"
 
     claude_code_bin: str = "claude"
-    claude_code_model: str = "claude-sonnet-4-6"
+    claude_code_model: str = "haiku"
 
     codex_bin: str = "codex"
     codex_model: str = "gpt-5"

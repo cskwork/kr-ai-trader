@@ -2,7 +2,22 @@
 
 한국 리테일 투자자를 위한 LLM 기반 자동매매 봇 템플릿. **모의투자 디폴트**, **결정론 리스크 게이트**, **멀티 LLM 백엔드**(Claude API / OpenAI API / Claude Code CLI / Codex CLI / Ollama).
 
+[![CI](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/cskwork/kr-ai-trader/actions/workflows/ci.yml)
+
 > **DISCLAIMER**: 이 코드는 교육/연구 목적입니다. 실제 자금 손실 책임은 전적으로 사용자에게 있습니다. 자세한 내용은 [DISCLAIMER.md](./DISCLAIMER.md) 참고.
+
+## 실시장 풀사이클 검증
+
+`make smoke-llm && make paper` 한 줄로 실데이터 풀사이클이 돈다.
+
+```text
+# 2026-05-18 KRX 종가로 검증한 실제 사이클
+삼성전자 (005930)   RSI 70.85, 20d +29% → Risk Officer no_action
+SK하이닉스 (000660) RSI 79.43, 20d +59% → LLM sell proposal (conv 0.72) → RiskGate 차단 (short-selling blocked)
+NAVER (035420)      RSI 39.06, 20d -8%  → 모더레이터 no_action
+```
+
+체인: `pykrx OHLCV → compute_features → Bull+Bear+RiskOfficer (claude code -p --json-schema) → RiskGate → PaperBroker → Journal 마크다운`.
 
 ## 핵심 원칙
 
@@ -35,7 +50,7 @@
 |---|---|---|
 | `anthropic_api` | `ANTHROPIC_API_KEY` | Claude Sonnet/Opus, tool_use로 structured output |
 | `openai_api` | `OPENAI_API_KEY` | GPT-5 계열, `response_format=json_schema` |
-| `claude_code_cli` | **API 키 불필요** | `claude` CLI 로그인된 OAuth 세션 활용 |
+| `claude_code_cli` | **API 키 불필요** | `claude -p --json-schema` 가 envelope `structured_output` 으로 검증 JSON 반환 |
 | `codex_cli` | **API 키 불필요** | `codex` CLI 로그인된 세션 활용 |
 | `ollama` | 로컬 | `http://localhost:11434`, `llama3.1`/`qwen2.5` 등 |
 
