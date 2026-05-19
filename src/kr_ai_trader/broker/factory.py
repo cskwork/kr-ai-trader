@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..config import Settings, get_settings
-from .base import Broker, BrokerError
+from .base import Broker
 from .paper import PaperBroker
 
 

@@ -30,9 +30,9 @@ data/processed/
 *.db
 *.sqlite*
 
-# Journal & logs (may contain account info)
-journal/
-logs/
+# Journal & logs (may contain account info) — repo-root only, not the `src/.../journal/` package
+/journal/
+/logs/
 *.log
 
 # IDE
