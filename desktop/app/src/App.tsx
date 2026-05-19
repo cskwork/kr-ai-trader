@@ -9,10 +9,10 @@ import { getHealth } from './api'
 type Tab = 'dashboard' | 'cycle' | 'journal' | 'observability'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'cycle', label: 'Run cycle' },
-  { id: 'journal', label: 'Journal' },
-  { id: 'observability', label: 'Observability' },
+  { id: 'dashboard', label: '홈' },
+  { id: 'cycle', label: '분석 실행' },
+  { id: 'journal', label: '저널' },
+  { id: 'observability', label: '모니터링' },
 ]
 
 interface Health {
@@ -71,18 +71,18 @@ function App() {
         <div className="status">
           {healthErr ? (
             <span className="badge bad" title={healthErr}>
-              backend down
+              백엔드 끊김
             </span>
           ) : health ? (
             <>
-              <span className="badge ok">backend</span>
+              <span className="badge ok">연결됨</span>
               <span className="muted">{health.provider}</span>
               <span className={health.kis_live ? 'badge live' : 'badge paper'}>
-                {health.kis_live ? 'LIVE' : 'PAPER'}
+                {health.kis_live ? '실전' : '모의'}
               </span>
             </>
           ) : (
-            <span className="badge">connecting…</span>
+            <span className="badge">연결 중…</span>
           )}
         </div>
       </header>

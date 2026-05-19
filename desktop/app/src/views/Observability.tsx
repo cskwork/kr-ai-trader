@@ -58,47 +58,47 @@ export default function Observability() {
     <div>
       <div className="grid3">
         <div className="metric">
-          <div className="label">Backend latency samples</div>
-          <div className="value">{series.length}/60</div>
+          <div className="label">수집 샘플</div>
+          <div className="value">{series.length}<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>/60</span></div>
         </div>
         <div className="metric">
-          <div className="label">LLM provider</div>
-          <div className="value" style={{ fontSize: 16 }}>
+          <div className="label">LLM 공급자</div>
+          <div className="value" style={{ fontSize: 18 }}>
             {last?.provider ?? '—'}
           </div>
         </div>
         <div className="metric">
-          <div className="label">HALT switch</div>
-          <div className={last?.halt ? 'value neg' : 'value pos'} style={{ fontSize: 16 }}>
-            {last?.halt ? 'ON' : 'off'}
+          <div className="label">서킷브레이커</div>
+          <div className={last?.halt ? 'value neg' : 'value pos'} style={{ fontSize: 18 }}>
+            {last?.halt ? '발동' : '정상'}
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3>Equity (last {series.length} samples, 3s interval)</h3>
+      <div className="card" style={{ marginTop: 2 }}>
+        <h3>자산 추이 — 최근 {series.length}샘플 (3초 간격)</h3>
         {series.length < 2 ? (
-          <div className="empty">샘플링 중… 백엔드가 멈추면 멈춰요.</div>
+          <div className="empty">샘플 수집 중… 백엔드가 응답해야 그래프가 표시돼요.</div>
         ) : (
           <Sparkline values={series.map((s) => s.equity)} min={equityMin} max={equityMax} />
         )}
-        <div className="muted" style={{ marginTop: 8 }}>
-          min ₩{Math.round(equityMin).toLocaleString('ko-KR')} · max ₩
-          {Math.round(equityMax).toLocaleString('ko-KR')}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+          <span className="muted">최저 ₩{Math.round(equityMin).toLocaleString('ko-KR')}</span>
+          <span className="muted">최고 ₩{Math.round(equityMax).toLocaleString('ko-KR')}</span>
         </div>
       </div>
 
       <div className="card">
-        <h3>Raw samples</h3>
-        {err && <div className="empty" style={{ color: '#ff7b72' }}>{err}</div>}
+        <h3>원시 샘플</h3>
+        {err && <div className="empty" style={{ color: 'var(--red)', fontStyle: 'normal' }}>{err}</div>}
         <table>
           <thead>
             <tr>
-              <th>Time (KST)</th>
-              <th>Cash</th>
-              <th>Equity</th>
-              <th>Positions</th>
-              <th>HALT</th>
+              <th>시각 (KST)</th>
+              <th>현금</th>
+              <th>총 자산</th>
+              <th>보유 종목</th>
+              <th>서킷</th>
             </tr>
           </thead>
           <tbody>
@@ -107,11 +107,13 @@ export default function Observability() {
               .reverse()
               .map((s, i) => (
                 <tr key={i}>
-                  <td>{s.ts}</td>
+                  <td style={{ color: 'var(--text-secondary)' }}>{s.ts}</td>
                   <td>₩{Math.round(s.cash).toLocaleString('ko-KR')}</td>
-                  <td>₩{Math.round(s.equity).toLocaleString('ko-KR')}</td>
+                  <td style={{ fontWeight: 600 }}>₩{Math.round(s.equity).toLocaleString('ko-KR')}</td>
                   <td>{s.positions}</td>
-                  <td style={{ color: s.halt ? '#ff7b72' : '#56d364' }}>{s.halt ? 'on' : 'off'}</td>
+                  <td style={{ color: s.halt ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+                    {s.halt ? '발동' : '정상'}
+                  </td>
                 </tr>
               ))}
           </tbody>
@@ -123,18 +125,47 @@ export default function Observability() {
 
 function Sparkline({ values, min, max }: { values: number[]; min: number; max: number }) {
   const w = 600
-  const h = 80
+  const h = 90
   const range = Math.max(max - min, 1)
-  const pts = values
-    .map((v, i) => {
-      const x = (i / Math.max(values.length - 1, 1)) * w
-      const y = h - ((v - min) / range) * h
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
+
+  const pts = values.map((v, i) => {
+    const x = (i / Math.max(values.length - 1, 1)) * w
+    const y = h - ((v - min) / range) * (h - 8) - 4
+    return { x, y }
+  })
+
+  const polylinePoints = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+
+  // Build fill path: line + bottom border
+  const fillPath =
+    pts.length > 0
+      ? `M${pts[0].x.toFixed(1)},${h} ` +
+        pts.map((p) => `L${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') +
+        ` L${pts[pts.length - 1].x.toFixed(1)},${h} Z`
+      : ''
+
+  const gradId = 'sparkGrad'
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 80 }}>
-      <polyline fill="none" stroke="#58a6ff" strokeWidth="1.5" points={pts} />
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 90 }} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3182F6" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#3182F6" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      {fillPath && <path d={fillPath} fill={`url(#${gradId})`} />}
+      <polyline fill="none" stroke="#3182F6" strokeWidth="2" points={polylinePoints} />
+      {pts.length > 0 && (
+        <circle
+          cx={pts[pts.length - 1].x}
+          cy={pts[pts.length - 1].y}
+          r="4"
+          fill="#3182F6"
+          stroke="#1C1C22"
+          strokeWidth="2"
+        />
+      )}
     </svg>
   )
 }

@@ -19,10 +19,10 @@ interface StageState {
 }
 
 const STAGE_LABEL: Record<StageKey, string> = {
-  features: '1. 가격 피처',
-  llm: '2. LLM 토론',
-  gate: '3. 리스크 게이트',
-  order: '4. 주문 실행',
+  features: '피처 수집',
+  llm: 'LLM 토론',
+  gate: '리스크 심사',
+  order: '주문 실행',
 }
 
 export default function CycleRunner() {
@@ -110,39 +110,42 @@ export default function CycleRunner() {
   return (
     <div>
       <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>새 사이클</h3>
+        <div className="row" style={{ marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>새 분석 사이클</h3>
           <div className="spacer" />
           <button
             type="button"
             onClick={() => setShowHelp((v) => !v)}
             style={{
               background: 'transparent',
-              border: '1px solid #30363d',
-              color: '#79c0ff',
-              padding: '4px 10px',
-              borderRadius: 999,
+              border: '1px solid var(--border-muted)',
+              color: 'var(--blue)',
+              padding: '5px 12px',
+              borderRadius: 'var(--r-pill)',
               fontSize: 12,
+              fontWeight: 600,
+              fontFamily: 'var(--font-sans)',
               cursor: 'pointer',
+              transition: 'background 0.15s',
             }}
           >
-            {showHelp ? '가이드 숨기기' : '사용법 가이드'}
+            {showHelp ? '가이드 닫기' : '사용법 보기'}
           </button>
         </div>
 
         {showHelp && <HelpPanel />}
 
-        <div className="kv" style={{ gridTemplateColumns: '120px 1fr', marginBottom: 12 }}>
-          <div className="k">티커</div>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+        <div className="kv" style={{ gridTemplateColumns: '100px 1fr', marginBottom: 14 }}>
+          <div className="k" style={{ paddingTop: 8 }}>종목 코드</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
               value={tickersInput}
               onChange={(e) => setTickersInput(e.target.value)}
               placeholder="005930,000660"
               disabled={running}
-              style={{ flex: '1 1 240px', minWidth: 200 }}
+              style={{ maxWidth: 320 }}
             />
-            <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {SUGGEST.map((s) => (
                 <button
                   key={s.code}
@@ -150,49 +153,65 @@ export default function CycleRunner() {
                   disabled={running}
                   onClick={() => setTickersInput(s.code)}
                   style={{
-                    background: '#0d1117',
-                    border: '1px solid #30363d',
-                    color: '#c9d1d9',
-                    padding: '2px 8px',
-                    borderRadius: 999,
+                    background: tickersInput === s.code ? 'var(--blue-dim)' : 'var(--bg-raised)',
+                    border: `1px solid ${tickersInput === s.code ? 'var(--blue)' : 'var(--border-muted)'}`,
+                    color: tickersInput === s.code ? 'var(--blue)' : 'var(--text-secondary)',
+                    padding: '3px 10px',
+                    borderRadius: 'var(--r-pill)',
                     fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-sans)',
                     cursor: 'pointer',
+                    transition: 'all 0.15s',
                   }}
                 >
-                  {s.code} {s.name}
+                  {s.name}
                 </button>
               ))}
             </div>
           </div>
-          <div className="k">시작 현금</div>
+          <div className="k" style={{ paddingTop: 8 }}>시작 현금</div>
           <input
             type="number"
             value={cash}
             onChange={(e) => setCash(Number(e.target.value))}
             disabled={running}
-            style={{ maxWidth: 240 }}
+            style={{ maxWidth: 200 }}
           />
         </div>
         <div className="row">
           <button className="primary" onClick={start} disabled={running} type="button">
-            {running ? '실행 중…' : '사이클 실행 ▶'}
+            {running ? '분석 중…' : '지금 분석하기'}
           </button>
           {running && (
             <button
               type="button"
-              className="primary"
-              style={{ background: '#3a0a13', borderColor: '#f85149' }}
+              style={{
+                background: 'var(--red-dim)',
+                border: '1px solid var(--red)',
+                color: 'var(--red)',
+                padding: '9px 20px',
+                borderRadius: 'var(--r-sm)',
+                fontWeight: 600,
+                fontFamily: 'var(--font-sans)',
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
               onClick={stop}
             >
-              취소
+              중단
             </button>
           )}
           <div className="spacer" />
-          {doneAt && <span className="muted">완료 {doneAt.slice(11, 19)} UTC</span>}
+          {doneAt && (
+            <span className="muted">
+              완료 {doneAt.slice(11, 19)} UTC
+            </span>
+          )}
         </div>
 
         {events.length > 0 && (
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 16 }}>
             <Stepper stages={stages} />
           </div>
         )}
@@ -201,11 +220,13 @@ export default function CycleRunner() {
       <div className="event-list">
         {events.length === 0 && !running && (
           <div className="empty">
-            티커를 입력하고 <b>사이클 실행</b> 을 누르면 단계별 의사결정이 여기에 표시됩니다.
+            종목을 선택하고 <b>지금 분석하기</b>를 누르면 단계별 AI 의사결정이 여기에 표시돼요.
           </div>
         )}
         {running && events.length === 0 && (
-          <div className="empty">백엔드 연결 중… (Moderator 가 LLM 3회 호출 → 종목당 30–60s)</div>
+          <div className="empty">
+            백엔드 연결 중… (LLM 3회 호출 → 종목당 30–60초 소요)
+          </div>
         )}
         {events.map((e, i) => (
           <EventCard key={i} e={e} />
@@ -217,33 +238,110 @@ export default function CycleRunner() {
 
 function Stepper({ stages }: { stages: Record<StageKey, StageState> }) {
   const keys: StageKey[] = ['features', 'llm', 'gate', 'order']
+  const doneCount = keys.filter((k) => stages[k].done).length
+  const activeIdx = keys.findIndex((k) => stages[k].active && !stages[k].done)
+  const progressPct =
+    doneCount === keys.length
+      ? 100
+      : activeIdx >= 0
+      ? ((activeIdx + 0.5) / keys.length) * 100
+      : (doneCount / keys.length) * 100
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-      {keys.map((k, i) => {
-        const s = stages[k]
-        const bg = s.ok === true ? '#033a16' : s.ok === false ? '#3a0a13' : s.active ? '#0c2d6b' : '#161b22'
-        const border = s.ok === true ? '#238636' : s.ok === false ? '#f85149' : s.active ? '#1f6feb' : '#30363d'
-        const color = s.ok === true ? '#56d364' : s.ok === false ? '#ff7b72' : s.active ? '#79c0ff' : '#8b949e'
-        return (
-          <div
-            key={k}
-            style={{
-              background: bg,
-              border: `1px solid ${border}`,
-              borderRadius: 8,
-              padding: '8px 10px',
-              fontSize: 12,
-              color,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 2 }}>
-              {STAGE_LABEL[k]} {s.active && !s.done ? '…' : s.done ? (s.ok ? '✓' : '✗') : ''}
+    <div>
+      {/* Progress bar */}
+      <div
+        style={{
+          height: 4,
+          background: 'var(--bg-raised)',
+          borderRadius: 'var(--r-pill)',
+          overflow: 'hidden',
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${progressPct}%`,
+            background: doneCount === keys.length && keys.every((k) => stages[k].ok !== false)
+              ? 'var(--green)'
+              : keys.some((k) => stages[k].ok === false)
+              ? 'var(--red)'
+              : 'var(--blue)',
+            borderRadius: 'var(--r-pill)',
+            transition: 'width 0.4s ease',
+          }}
+        />
+      </div>
+
+      {/* Step indicators */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {keys.map((k) => {
+          const s = stages[k]
+          const statusColor =
+            s.ok === true
+              ? 'var(--green)'
+              : s.ok === false
+              ? 'var(--red)'
+              : s.active
+              ? 'var(--blue)'
+              : 'var(--text-tertiary)'
+          const bg =
+            s.ok === true
+              ? 'var(--green-dim)'
+              : s.ok === false
+              ? 'var(--red-dim)'
+              : s.active
+              ? 'var(--blue-dim)'
+              : 'var(--bg-raised)'
+
+          return (
+            <div
+              key={k}
+              style={{
+                background: bg,
+                border: `1px solid ${statusColor === 'var(--text-tertiary)' ? 'var(--border-subtle)' : statusColor}`,
+                borderRadius: 'var(--r-sm)',
+                padding: '10px 12px',
+                fontSize: 12,
+                transition: 'all 0.25s ease',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 3,
+                  color: statusColor,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.4px',
+                }}
+              >
+                {STAGE_LABEL[k]}
+                {s.active && !s.done && (
+                  <span style={{ animation: 'fadeInOut 1.2s ease-in-out infinite' }}>…</span>
+                )}
+                {s.done && (
+                  <span style={{ fontSize: 12 }}>{s.ok ? '✓' : '✗'}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {s.detail ?? '대기 중'}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: '#8b949e' }}>{s.detail ?? '대기'}</div>
-            {i < keys.length - 1 && <div style={{ position: 'relative' }} />}
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+
+      <style>{`
+        @keyframes fadeInOut {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -252,36 +350,41 @@ function HelpPanel() {
   return (
     <div
       style={{
-        background: '#0d1117',
-        border: '1px solid #30363d',
-        borderRadius: 8,
-        padding: 14,
-        marginBottom: 12,
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--r-md)',
+        padding: '16px 20px',
+        marginBottom: 14,
         fontSize: 13,
-        lineHeight: 1.6,
+        lineHeight: 1.65,
       }}
     >
-      <div style={{ marginBottom: 8 }}>
-        <b style={{ color: '#79c0ff' }}>한 사이클이란?</b> 종목 하나에 대해 LLM 이 3-에이전트 (Bull / Bear / RiskOfficer) 토론으로 매매 제안을 만들고, 결정론
-        리스크 게이트가 통과시키면 페이퍼 브로커가 모의 체결하는 한 번의 흐름.
+      <div style={{ marginBottom: 10, color: 'var(--text-primary)' }}>
+        <b style={{ color: 'var(--blue)' }}>사이클이란?</b>{' '}
+        종목 하나에 대해 AI가 Bull / Bear / RiskOfficer 3-에이전트 토론으로 매매 제안을 만들고,
+        리스크 게이트를 통과하면 모의 체결하는 한 번의 흐름이에요.
       </div>
-      <ol style={{ margin: '8px 0 0', paddingLeft: 20, color: '#c9d1d9' }}>
-        <li>
-          <b>가격 피처</b> — pykrx 로 최근 60영업일 OHLCV → RSI14, SMA5/20, 1·5·20일 모멘텀 산출
+      <ol style={{ margin: '10px 0 0', paddingLeft: 20, color: 'var(--text-secondary)' }}>
+        <li style={{ marginBottom: 5 }}>
+          <b style={{ color: 'var(--text-primary)' }}>피처 수집</b>{' '}
+          — pykrx로 60영업일 OHLCV → RSI14, SMA5/20, 1·5·20일 모멘텀 계산
+        </li>
+        <li style={{ marginBottom: 5 }}>
+          <b style={{ color: 'var(--text-primary)' }}>LLM 토론</b>{' '}
+          — claude-haiku-4-5가 3회 호출, JSON Schema 검증된 매매 제안(thesis + risks) 반환.
+          합의 실패 시 <code>no_action</code>
+        </li>
+        <li style={{ marginBottom: 5 }}>
+          <b style={{ color: 'var(--text-primary)' }}>리스크 심사</b>{' '}
+          — 화이트리스트 / 포지션 한도 / 일일 손실 서킷브레이커 / 공매도 차단. 거부 사유 전부 기록
         </li>
         <li>
-          <b>LLM 토론</b> — claude-haiku-4-5 가 Bull / Bear / RiskOfficer 역할로 3회 호출, JSON Schema 검증된 매매 제안 (thesis + risks) 반환. 합의되지 않으면
-          <code> no_action</code>
-        </li>
-        <li>
-          <b>리스크 게이트</b> — 화이트리스트 / 포지션 한도 / 일일 손실 서킷브레이커 / 공매도 차단 / 레버리지 0 검사. 거부 사유는 모두 기록
-        </li>
-        <li>
-          <b>주문 실행</b> — 멱등 client_order_id 로 PaperBroker 가 체결. 거래세 0.18% 반영
+          <b style={{ color: 'var(--text-primary)' }}>주문 실행</b>{' '}
+          — 멱등 client_order_id로 PaperBroker 체결. 거래세 0.18% 반영
         </li>
       </ol>
-      <div style={{ marginTop: 8, color: '#8b949e', fontSize: 12 }}>
-        결과는 <code>journal/YYYY-MM-DD.md</code> 에 영구 기록 (Journal 탭) — thesis, risks, 거부 사유까지 보존되어 사후 분석 가능.
+      <div style={{ marginTop: 10, color: 'var(--text-secondary)', fontSize: 12 }}>
+        결과는 <code>journal/YYYY-MM-DD.md</code>에 영구 기록 — 저널 탭에서 사후 분석 가능해요.
       </div>
     </div>
   )
@@ -363,12 +466,15 @@ function Renderer({ e }: { e: CycleEvent }) {
       return (
         <div>
           <div>
-            <b>{e.ticker}</b> · side <b style={{ color: e.side === 'buy' ? '#56d364' : '#ff7b72' }}>{e.side}</b> ·
-            conviction <b>{(e.conviction * 100).toFixed(0)}%</b> · size <b>{e.size_pct.toFixed(2)}%</b>
+            <b>{e.ticker}</b> · 방향{' '}
+            <b style={{ color: e.side === 'buy' ? 'var(--green)' : 'var(--red)' }}>
+              {e.side === 'buy' ? '매수' : '매도'}
+            </b>{' '}
+            · 확신도 <b>{(e.conviction * 100).toFixed(0)}%</b> · 비중 <b>{e.size_pct.toFixed(2)}%</b>
             {e.stop_loss_pct ? (
               <>
                 {' '}
-                · stop_loss <b>{e.stop_loss_pct}%</b>
+                · 손절선 <b>{e.stop_loss_pct}%</b>
               </>
             ) : null}
           </div>
@@ -389,7 +495,9 @@ function Renderer({ e }: { e: CycleEvent }) {
             <b>{e.ticker}</b> · qty <b>{e.computed_qty}</b> · notional ₩
             {Math.round(e.notional).toLocaleString('ko-KR')} · equity ₩
             {Math.round(e.equity).toLocaleString('ko-KR')} ·{' '}
-            <b style={{ color: e.accepted ? '#56d364' : '#ff7b72' }}>{e.accepted ? 'ACCEPTED' : 'REJECTED'}</b>
+            <b style={{ color: e.accepted ? 'var(--green)' : 'var(--red)' }}>
+              {e.accepted ? '심사 통과' : '심사 거부'}
+            </b>
           </div>
           {e.reasons.length > 0 && (
             <ul className="reasons">
@@ -431,15 +539,15 @@ function Renderer({ e }: { e: CycleEvent }) {
         </div>
       )
     case 'error':
-      return <div style={{ color: '#ff7b72' }}>{e.message}</div>
+      return <div style={{ color: 'var(--red)' }}>{e.message}</div>
   }
 }
 
 function Pct({ v }: { v: number }) {
-  const cls = v > 0 ? '#56d364' : v < 0 ? '#ff7b72' : '#c9d1d9'
+  const color = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text-secondary)'
   const sign = v > 0 ? '+' : ''
   return (
-    <b style={{ color: cls }}>
+    <b style={{ color }}>
       {sign}
       {v.toFixed(2)}%
     </b>
