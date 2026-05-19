@@ -300,6 +300,7 @@ async def ws_cycle(ws: WebSocket) -> None:
                 portfolio_equity=equity,
                 day_pnl_pct=0.0,
                 last_price=quote.price,
+                proposed_stop_loss_pct=proposal.stop_loss_pct,
             )
             await _send_event(
                 ws,
@@ -307,6 +308,8 @@ async def ws_cycle(ws: WebSocket) -> None:
                 ticker=ticker,
                 accepted=decision.accepted,
                 reasons=decision.reasons,
+                principles_applied=decision.principles_applied,
+                principles_violated=decision.principles_violated,
                 computed_qty=qty,
                 notional=qty * quote.price,
                 equity=equity,
