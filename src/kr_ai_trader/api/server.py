@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -40,6 +40,12 @@ log = structlog.get_logger("api")
 
 app = FastAPI(title="kr-ai-trader API", version="0.2.0")
 
+# KRX 종목코드는 6자리 숫자. 경계에서 강제하여 path traversal / pykrx rate-limit 남용 차단.
+_TICKER_RE = re.compile(r"^\d{6}$")
+# /ws/cycle 가 받는 cash 의 합리적 범위 (단위: 원).
+_MIN_CASH = 1_000.0           # 1천원
+_MAX_CASH = 10_000_000_000.0  # 100억원
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -48,11 +54,20 @@ app.add_middleware(
         "tauri://localhost",
         "https://tauri.localhost",
     ],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 
+def _validate_ticker(ticker: str) -> str:
+    if not _TICKER_RE.fullmatch(ticker):
+        raise HTTPException(status_code=400, detail=f"invalid ticker: {ticker!r}")
+    return ticker
+
+
+# 모듈 전역 페이퍼 브로커는 /api/positions 표시용. /ws/cycle 은 세션마다 새 브로커를 생성하므로
+# 둘은 의도적으로 분리. 향후 단일 세션 모델로 통합 시 두 경로 모두 정리.
 _paper_broker: PaperBroker | None = None
 _journal: JournalRecorder | None = None
 
@@ -60,7 +75,7 @@ _journal: JournalRecorder | None = None
 def _broker() -> PaperBroker:
     global _paper_broker
     if _paper_broker is None:
-        _paper_broker = PaperBroker(initial_cash=10_000_000.0)
+        _paper_broker = PaperBroker(initial_cash=10_000_000.0, settings=get_settings())
     return _paper_broker
 
 
@@ -147,6 +162,8 @@ async def ohlcv(ticker: str, days: int = 60) -> dict[str, Any]:
     from ..data.calendar import previous_business_day
     from ..data.prices import get_ohlcv
 
+    ticker = _validate_ticker(ticker)
+    days = max(1, min(days, 365))
     end = previous_business_day()
     start = end - timedelta(days=days * 2)  # 휴일 보정 buffer
     df = get_ohlcv(ticker, start, end)
@@ -170,6 +187,7 @@ async def ohlcv(ticker: str, days: int = 60) -> dict[str, Any]:
 
 @app.get("/api/features/{ticker}")
 async def features(ticker: str) -> dict[str, Any]:
+    ticker = _validate_ticker(ticker)
     try:
         s = compute_features(ticker)
     except Exception as e:
@@ -179,8 +197,9 @@ async def features(ticker: str) -> dict[str, Any]:
 
 @app.get("/api/journal")
 async def journal_today() -> dict[str, Any]:
-    today = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
-    path = Path("journal") / f"{today}.md"
+    journal = _journal_recorder()
+    path = journal.path_for()                 # KST 기준 today
+    today = path.stem
     if not path.exists():
         return {"date": today, "markdown": "", "exists": False}
     return {"date": today, "markdown": path.read_text(encoding="utf-8"), "exists": True}
@@ -210,8 +229,18 @@ async def ws_cycle(ws: WebSocket) -> None:
     try:
         raw = await ws.receive_text()
         req = json.loads(raw)
-        tickers: list[str] = req.get("tickers") or ["005930"]
-        initial_cash: float = float(req.get("cash") or 10_000_000.0)
+        raw_tickers = req.get("tickers") or ["005930"]
+        # 클라이언트가 보낸 ticker 를 6자리 숫자로 미리 필터.
+        tickers: list[str] = [t for t in raw_tickers if isinstance(t, str) and _TICKER_RE.fullmatch(t)]
+        if not tickers:
+            await _send_event(ws, "error", message="no valid 6-digit tickers in request")
+            await ws.close()
+            return
+        try:
+            initial_cash = float(req.get("cash") or 10_000_000.0)
+        except (TypeError, ValueError):
+            initial_cash = 10_000_000.0
+        initial_cash = max(_MIN_CASH, min(initial_cash, _MAX_CASH))
 
         settings = get_settings()
         universe = load_universe(settings.universe, settings.universe_file)
@@ -226,7 +255,7 @@ async def ws_cycle(ws: WebSocket) -> None:
             cash=initial_cash,
         )
 
-        broker = PaperBroker(initial_cash=initial_cash)
+        broker = PaperBroker(initial_cash=initial_cash, settings=settings)
         risk_gate = RiskGate(settings=settings, universe=universe)
         journal = _journal_recorder()
         executor = Executor(
@@ -286,11 +315,15 @@ async def ws_cycle(ws: WebSocket) -> None:
             quote = await broker.get_quote(ticker)
             equity = cash + sum(p.market_value for p in positions_)
             target_notional = equity * (proposal.size_pct / 100.0)
-            qty = max(1, int(target_notional // quote.price))
+            qty = int(target_notional // quote.price)
+            side_ = OrderSide.buy if proposal.side == "buy" else OrderSide.sell
+            if side_ == OrderSide.sell:
+                held = sum(p.quantity for p in positions_ if p.ticker == ticker)
+                qty = max(0, min(qty if qty > 0 else held, held))
             tentative = Order(
-                client_order_id=f"ui-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{ticker}",
+                client_order_id=Executor.make_idempotent_id("ui", ticker, side_.value, qty),
                 ticker=ticker,
-                side=OrderSide.buy if proposal.side == "buy" else OrderSide.sell,
+                side=side_,
                 quantity=qty,
             )
             decision = risk_gate.evaluate(

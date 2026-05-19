@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     kis_app_secret: SecretStr | None = None
     kis_account_number: str | None = None
     kis_live: bool = False
+    # 실계좌 활성화 시 반드시 함께 'I_UNDERSTAND_REAL_MONEY' 로 설정해야 함.
+    kis_live_confirm: str | None = None
 
     # 리스크
     max_position_pct: float = Field(default=3.0, ge=0.0, le=100.0)
@@ -61,6 +63,11 @@ class Settings(BaseSettings):
     daily_loss_flatten_pct: float = Field(default=4.0, ge=0.0)
     hard_stop_pct: float = Field(default=7.0, ge=0.0)
     leverage: float = Field(default=0.0, ge=0.0)
+
+    # 거래비용 (PaperBroker + 백테 공용)
+    commission_pct: float = Field(default=0.00015, ge=0.0)          # 매수/매도 양방향
+    tax_kospi_sell_pct: float = Field(default=0.0018, ge=0.0)       # 코스피 매도 거래세
+    tax_kosdaq_sell_pct: float = Field(default=0.0018, ge=0.0)      # 코스닥 매도 거래세
 
     # 유니버스
     universe: str = "kospi200"
@@ -72,8 +79,22 @@ class Settings(BaseSettings):
     telegram_chat_id: str | None = None
 
     # 운영 안전장치
-    halt_file: Path = Path("/tmp/kr-ai-trader.HALT")
+    halt_file: Path = Path.home() / ".kr-ai-trader" / "HALT"
     reconciliation_interval_sec: int = 60
+
+    @model_validator(mode="after")
+    def _validate_thresholds(self) -> Settings:
+        if self.daily_loss_halt_pct > self.daily_loss_flatten_pct:
+            raise ValueError(
+                f"daily_loss_halt_pct ({self.daily_loss_halt_pct}) must be <= "
+                f"daily_loss_flatten_pct ({self.daily_loss_flatten_pct})"
+            )
+        if self.kis_live and self.kis_live_confirm != "I_UNDERSTAND_REAL_MONEY":
+            raise ValueError(
+                "kis_live=True requires kis_live_confirm='I_UNDERSTAND_REAL_MONEY' "
+                "(set via KIS_LIVE_CONFIRM env). Refusing to start real-money mode."
+            )
+        return self
 
 
 _settings: Settings | None = None
@@ -85,3 +106,9 @@ def get_settings() -> Settings:
     if _settings is None:
         _settings = Settings()
     return _settings
+
+
+def reset_settings() -> None:
+    """테스트 픽스처용. 모듈 캐시 싱글톤 초기화."""
+    global _settings
+    _settings = None

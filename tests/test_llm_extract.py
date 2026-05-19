@@ -43,7 +43,9 @@ def test_validate_missing_required_raises() -> None:
     }
     with pytest.raises(LLMError) as exc:
         validate_against_schema({"b": 1}, schema)
-    assert "missing required field" in str(exc.value)
+    msg = str(exc.value).lower()
+    # jsonschema(엄격) 또는 fallback(경량) 둘 다 수용.
+    assert "required" in msg or "missing" in msg
 
 
 def test_validate_wrong_type_raises() -> None:

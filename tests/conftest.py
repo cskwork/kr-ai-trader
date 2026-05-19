@@ -24,6 +24,21 @@ def settings(tmp_path: Path) -> Settings:
         daily_loss_flatten_pct=4.0,
         leverage=0.0,
         universe="kospi200",
+        commission_pct=0.00015,
+        tax_kospi_sell_pct=0.0018,
+        tax_kosdaq_sell_pct=0.0018,
+    )
+
+
+@pytest.fixture
+def zero_fee_settings(settings: Settings) -> Settings:
+    """기존 fee-less 테스트 호환용. PaperBroker 수수료 0 으로 잠금."""
+    return settings.model_copy(
+        update={
+            "commission_pct": 0.0,
+            "tax_kospi_sell_pct": 0.0018,
+            "tax_kosdaq_sell_pct": 0.0018,
+        }
     )
 
 
@@ -38,8 +53,8 @@ def risk_gate(settings: Settings, universe: frozenset[str]) -> RiskGate:
 
 
 @pytest.fixture
-def paper_broker() -> PaperBroker:
-    broker = PaperBroker(initial_cash=10_000_000.0)
+def paper_broker(zero_fee_settings: Settings) -> PaperBroker:
+    broker = PaperBroker(initial_cash=10_000_000.0, settings=zero_fee_settings)
     broker.set_quote(
         Quote(
             ticker="005930",
