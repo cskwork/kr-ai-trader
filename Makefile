@@ -1,4 +1,4 @@
-.PHONY: help install dev fmt lint type test smoke-llm smoke-kis paper demo backtest live clean
+.PHONY: help install dev fmt lint type test smoke-llm smoke-kis paper demo backtest live clean api desktop
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,8 @@ help:
 	@echo "  demo        seed buy → LLM sell → fill 풀사이클 데모"
 	@echo "  backtest    UNIVERSE=kospi200 FROM=YYYY-MM-DD TO=YYYY-MM-DD"
 	@echo "  live        KIS_LIVE=1 로 실계좌 실행 (사전 검증 필수)"
+	@echo "  api         FastAPI 백엔드 (127.0.0.1:8765) — 데스크톱 앱과 페어링"
+	@echo "  desktop     Tauri 데스크톱 앱 (dev 모드, pnpm 필요)"
 	@echo "  clean       remove caches"
 
 install:
@@ -53,6 +55,12 @@ backtest:
 live:
 	@[ "$$KIS_LIVE" = "1" ] || (echo "set KIS_LIVE=1 explicitly" && exit 1)
 	PYTHONPATH=src python -m scripts.run_live
+
+api:
+	PYTHONPATH=src python -m kr_ai_trader.api.server
+
+desktop:
+	cd desktop/app && pnpm install && pnpm tauri dev
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache **/__pycache__ build dist *.egg-info

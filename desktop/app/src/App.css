@@ -1,0 +1,513 @@
+/* Pretendard — purpose-built for Korean UI, excellent number rendering */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css');
+
+/* ──────────────────────────────────────────────
+   Design tokens — Toss-influenced dark fintech
+   Primary  #3182F6  (Toss Blue)
+   Surface  #141416 / #1C1C22 / #26272F
+   Positive #1AC872  Negative #FF4747
+   ────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+
+  /* Typeface */
+  --font-sans: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo',
+    'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Background layers */
+  --bg-base:    #141416;
+  --bg-surface: #1C1C22;
+  --bg-raised:  #26272F;
+  --bg-input:   #0F0F14;
+
+  /* Border */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-muted:  rgba(255, 255, 255, 0.10);
+
+  /* Text */
+  --text-primary:   #EBEBF0;
+  --text-secondary: #8B8C98;
+  --text-tertiary:  #4E5060;
+
+  /* Brand */
+  --blue:       #3182F6;
+  --blue-dim:   rgba(49, 130, 246, 0.15);
+  --blue-soft:  #1A56E8;
+
+  /* Semantic */
+  --green:      #1AC872;
+  --green-dim:  rgba(26, 200, 114, 0.13);
+  --red:        #FF4747;
+  --red-dim:    rgba(255, 71, 71, 0.13);
+  --amber:      #F5A623;
+  --amber-dim:  rgba(245, 166, 35, 0.13);
+
+  /* Radius */
+  --r-xs:  6px;
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  16px;
+  --r-xl:  20px;
+  --r-pill: 999px;
+
+  /* Shadow */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.25);
+  --shadow-raise: 0 2px 8px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.3);
+
+  font-family: var(--font-sans);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+/* ─── App shell ─────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
+  background: var(--bg-base);
+}
+
+/* ─── Topbar ─────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  height: 52px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+/* Toss-style pulsing indicator dot */
+.dot {
+  width: 7px;
+  height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(26, 200, 114, 0.5);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(26, 200, 114, 0.5); }
+  60%  { box-shadow: 0 0 0 5px rgba(26, 200, 114, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(26, 200, 114, 0); }
+}
+
+/* ─── Tabs — Toss pill segment control ──────── */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  background: var(--bg-raised);
+  border-radius: var(--r-pill);
+  padding: 3px;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border-radius: var(--r-pill);
+  transition: background 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+}
+
+.tab.on {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(49, 130, 246, 0.4);
+}
+
+.tab:hover:not(.on) {
+  background: rgba(255,255,255,0.07);
+  color: var(--text-primary);
+}
+
+/* ─── Status badges ──────────────────────────── */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+}
+
+.badge {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+
+.badge.ok {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.badge.bad {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+.badge.paper {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.badge.live {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+.muted {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* ─── Content area ───────────────────────────── */
+
+.content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ─── Cards ──────────────────────────────────── */
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.card h3 {
+  margin: 0 0 14px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* ─── Key–value grid ─────────────────────────── */
+
+.kv {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 7px 14px;
+  font-size: 14px;
+}
+
+.kv .k {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.kv .v {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* ─── Grid layouts ───────────────────────────── */
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+/* ─── Metric cards — Toss balance widget style ─ */
+
+.metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease;
+}
+
+.metric:hover {
+  box-shadow: var(--shadow-raise);
+}
+
+.metric .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric .value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 6px;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.metric .value.pos {
+  color: var(--green);
+}
+
+.metric .value.neg {
+  color: var(--red);
+}
+
+/* ─── Buttons ────────────────────────────────── */
+
+button.primary {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  padding: 9px 20px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  font-size: 14px;
+  letter-spacing: -0.1px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+button.primary:hover {
+  background: var(--blue-soft);
+}
+
+button.primary:active {
+  transform: scale(0.98);
+}
+
+button.primary:disabled {
+  background: var(--bg-raised);
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+}
+
+/* ─── Form inputs ────────────────────────────── */
+
+input, textarea, select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-muted);
+  color: var(--text-primary);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  transition: border-color 0.15s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-dim);
+}
+
+/* ─── Table ──────────────────────────────────── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Event list ─────────────────────────────── */
+
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  font-size: 13px;
+  box-shadow: var(--shadow-card);
+}
+
+.event .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.event .kind {
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+}
+
+.event .kind.proposal {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.event .kind.order {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.event .kind.reject {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+.event .kind.risk {
+  background: var(--amber-dim);
+  color: var(--amber);
+}
+
+.event .ts {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.event .body {
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+
+/* Toss-style thesis callout — left accent bar */
+.event .thesis {
+  font-style: italic;
+  margin: 8px 0;
+  color: var(--text-primary);
+  border-left: 3px solid var(--blue);
+  padding-left: 12px;
+  background: var(--blue-dim);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  padding: 8px 12px;
+  line-height: 1.6;
+}
+
+.event .risks {
+  margin: 8px 0 0 0;
+  padding-left: 22px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.event .reasons {
+  margin: 8px 0 0 0;
+  padding-left: 22px;
+  color: var(--red);
+  line-height: 1.6;
+}
+
+/* ─── Journal markdown ───────────────────────── */
+
+pre.md {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 20px 24px;
+  font-family: 'SF Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+
+/* ─── Empty / loading states ─────────────────── */
+
+.empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 24px 16px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ─── Layout utilities ───────────────────────── */
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
