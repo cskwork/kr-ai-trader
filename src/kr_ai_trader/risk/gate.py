@@ -15,7 +15,6 @@ LLM 제안 → 이 게이트 → 통과한 것만 주문. 모든 거부 사유�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from ..broker.base import Order, OrderSide, Position
 from ..config import Settings

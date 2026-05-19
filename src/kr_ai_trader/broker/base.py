@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from enum import StrEnum
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Protocol, runtime_checkable
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class BrokerError(RuntimeError):
     """주문/조회 실패."""
 
 
-class OrderSide(StrEnum):
+class OrderSide(str, Enum):
     buy = "buy"
     sell = "sell"
 
@@ -55,7 +59,7 @@ class Order:
     status: str = "pending"              # pending | filled | partial | rejected | cancelled
     filled_quantity: int = 0
     filled_avg_price: float = 0.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     rejected_reason: str | None = None
 
 

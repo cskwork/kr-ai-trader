@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .base import Broker, BrokerError, Order, OrderSide, Position, Quote
 
@@ -97,7 +97,7 @@ class PaperBroker(Broker):
         order.status = "filled"
         order.filled_quantity = order.quantity
         order.filled_avg_price = fill_price
-        order.created_at = datetime.utcnow()
+        order.created_at = datetime.now(timezone.utc)
         self._orders[order.client_order_id] = order
         return order
 

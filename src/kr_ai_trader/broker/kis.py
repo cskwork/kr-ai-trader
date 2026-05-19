@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .base import Broker, BrokerError, Order, OrderSide, Position, Quote
@@ -79,7 +79,7 @@ class KISBroker(Broker):
             return Quote(
                 ticker=ticker,
                 price=float(q.price),
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 bid=float(getattr(q, "bid", 0)) or None,
                 ask=float(getattr(q, "ask", 0)) or None,
             )
@@ -92,15 +92,12 @@ class KISBroker(Broker):
             kwargs = {"qty": order.quantity}
             if order.limit_price is not None:
                 kwargs["price"] = order.limit_price
-            if order.side == OrderSide.buy:
-                result = stock.buy(**kwargs)
-            else:
-                result = stock.sell(**kwargs)
+            result = stock.buy(**kwargs) if order.side == OrderSide.buy else stock.sell(**kwargs)
             order.broker_order_id = str(getattr(result, "order_no", uuid.uuid4().hex[:12]))
             order.status = "filled" if getattr(result, "filled", True) else "pending"
             order.filled_quantity = int(getattr(result, "filled_qty", order.quantity))
             order.filled_avg_price = float(getattr(result, "avg_price", order.limit_price or 0.0))
-            order.created_at = datetime.utcnow()
+            order.created_at = datetime.now(timezone.utc)
             return order
         except Exception as e:
             order.status = "rejected"
