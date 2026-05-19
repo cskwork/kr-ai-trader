@@ -75,7 +75,7 @@ export type CycleEvent =
   | { kind: 'moderator_failed'; ts: string; ticker: string; error: string }
   | { kind: 'no_action'; ts: string; ticker: string }
   | { kind: 'proposal_built'; ts: string; ticker: string; side: string; conviction: number; size_pct: number; thesis: string; risks: string[]; stop_loss_pct: number | null }
-  | { kind: 'risk_gate_decision'; ts: string; ticker: string; accepted: boolean; reasons: string[]; computed_qty: number; notional: number; equity: number }
+  | { kind: 'risk_gate_decision'; ts: string; ticker: string; accepted: boolean; reasons: string[]; principles_applied: string[]; principles_violated: string[]; computed_qty: number; notional: number; equity: number }
   | { kind: 'order_placed'; ts: string; ticker: string; side: string; quantity: number; price: number; status: string; client_order_id: string; broker_order_id: string }
   | { kind: 'order_rejected'; ts: string; ticker: string; reasons: string[] }
   | { kind: 'cycle_done'; ts: string; final_cash: number; final_positions: Array<{ ticker: string; qty: number; avg: number }> }

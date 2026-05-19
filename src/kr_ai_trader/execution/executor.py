@@ -68,6 +68,7 @@ class Executor:
             portfolio_equity=equity,
             day_pnl_pct=day_pnl_pct,
             last_price=quote.price,
+            proposed_stop_loss_pct=proposal.stop_loss_pct,
         )
 
         if not decision.accepted:

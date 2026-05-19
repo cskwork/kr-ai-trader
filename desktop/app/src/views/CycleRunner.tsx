@@ -499,6 +499,30 @@ function Renderer({ e }: { e: CycleEvent }) {
               {e.accepted ? '심사 통과' : '심사 거부'}
             </b>
           </div>
+          {e.principles_applied?.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 11 }}>
+              <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>적용 계명:</span>
+              {e.principles_applied.map((p, i) => {
+                const violated = e.principles_violated?.includes(p)
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: 'inline-block',
+                      padding: '1px 8px',
+                      margin: '2px 4px 2px 0',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      background: violated ? 'var(--red-dim)' : 'var(--green-dim)',
+                      color: violated ? 'var(--red)' : 'var(--green)',
+                    }}
+                  >
+                    {violated ? '✗' : '✓'} {p}
+                  </span>
+                )
+              })}
+            </div>
+          )}
           {e.reasons.length > 0 && (
             <ul className="reasons">
               {e.reasons.map((r: string, i: number) => (
