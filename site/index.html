@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>kr-ai-trader — 한국 리테일을 위한 LLM 자동매매 봇 템플릿</title>
+<meta name="description" content="모의투자 디폴트, 결정론 리스크 게이트, 멀티 LLM 백엔드(Claude / OpenAI / Claude Code CLI / Codex CLI / Ollama)를 갖춘 한국 리테일 투자자용 LLM 기반 자동매매 봇 템플릿. KIS Open API + Tauri 데스크톱 관측 UI." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a0e14'/%3E%3Cpath d='M22 64 L40 46 L54 58 L78 30' fill='none' stroke='%232dd4a7' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="kr-ai-trader — LLM 기반 한국 자동매매 봇 템플릿" />
+<meta property="og:description" content="LLM은 분석가, 코드가 리스크매니저. 모의투자 디폴트 + 결정론 리스크 게이트 + 멀티 LLM 백엔드." />
+<meta property="og:url" content="https://cskwork.github.io/kr-ai-trader/" />
+
+<!-- Korean web font -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-elev: #11161f;
+    --bg-elev-2: #161c27;
+    --line: #1f2733;
+    --line-soft: #19202b;
+    --text: #e6edf3;
+    --text-dim: #97a3b3;
+    --text-faint: #5d6b7d;
+    --accent: #2dd4a7;        /* profit teal-green */
+    --accent-deep: #14b88a;
+    --up: #ff5d5d;            /* KR market up = red */
+    --down: #4d9fff;          /* KR market down = blue */
+    --warn: #ffb454;
+    --radius: 14px;
+    --maxw: 1140px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: rgba(45, 212, 167, 0.28); color: #fff; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- ambient background ---------- */
+  .bg-grid {
+    position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 25%, transparent 75%);
+    opacity: 0.5;
+  }
+  .bg-glow {
+    position: fixed; z-index: -1; pointer-events: none;
+    width: 70vw; height: 60vh; top: -22vh; left: 50%; transform: translateX(-50%);
+    background: radial-gradient(closest-side, rgba(45, 212, 167, 0.16), transparent 70%);
+    filter: blur(20px);
+  }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(10, 14, 20, 0.72);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; }
+  .brand svg { width: 26px; height: 26px; }
+  .brand .tld { color: var(--accent); }
+  .nav-links { display: flex; align-items: center; gap: 28px; }
+  .nav-links a { color: var(--text-dim); font-size: 14px; font-weight: 500; transition: color .18s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-gh {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 15px; border: 1px solid var(--line); border-radius: 9px;
+    color: var(--text) !important; font-size: 13.5px; font-weight: 600;
+    transition: border-color .18s, background .18s;
+  }
+  .nav-gh:hover { border-color: var(--accent); background: rgba(45,212,167,.07); }
+  .nav-gh svg { width: 16px; height: 16px; }
+  @media (max-width: 760px) { .nav-links a:not(.nav-gh) { display: none; } }
+
+  /* ---------- hero ---------- */
+  header { padding: 92px 0 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: .04em;
+    color: var(--accent); background: rgba(45,212,167,.08);
+    border: 1px solid rgba(45,212,167,.22); border-radius: 100px;
+    padding: 6px 14px; margin-bottom: 26px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 9px var(--accent); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  h1 {
+    font-size: clamp(38px, 6.2vw, 68px);
+    line-height: 1.04; letter-spacing: -0.035em; font-weight: 800;
+    max-width: 16ch;
+  }
+  h1 .grad {
+    background: linear-gradient(120deg, var(--accent) 10%, #5fe6c2 55%, #4d9fff 110%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .lede {
+    margin-top: 26px; max-width: 60ch;
+    font-size: clamp(16px, 2.2vw, 19px); color: var(--text-dim);
+  }
+  .lede b { color: var(--text); font-weight: 600; }
+
+  .hero-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 38px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 11px; font-weight: 600; font-size: 15px;
+    transition: transform .15s, box-shadow .2s, background .2s, border-color .2s;
+  }
+  .btn svg { width: 17px; height: 17px; }
+  .btn-primary { background: var(--accent); color: #04120d; box-shadow: 0 8px 28px -8px rgba(45,212,167,.6); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -8px rgba(45,212,167,.7); }
+  .btn-ghost { border: 1px solid var(--line); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--text-faint); background: var(--bg-elev); transform: translateY(-2px); }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 40px; }
+  .badge {
+    font-family: var(--mono); font-size: 12.5px; color: var(--text-dim);
+    border: 1px solid var(--line); background: var(--bg-elev); border-radius: 8px;
+    padding: 7px 13px; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .badge .k { color: var(--accent); }
+
+  /* ---------- section scaffolding ---------- */
+  section { padding: 72px 0; border-top: 1px solid var(--line-soft); }
+  .sec-tag { font-family: var(--mono); font-size: 12.5px; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+  .sec-title { font-size: clamp(26px, 4vw, 38px); letter-spacing: -0.03em; font-weight: 800; margin: 12px 0 14px; }
+  .sec-sub { color: var(--text-dim); max-width: 64ch; font-size: 16px; }
+
+  /* ---------- principle cards ---------- */
+  .grid { display: grid; gap: 18px; margin-top: 44px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 24px;
+    transition: border-color .2s, transform .2s, background .2s;
+    position: relative; overflow: hidden;
+  }
+  .card:hover { border-color: rgba(45,212,167,.4); transform: translateY(-3px); }
+  .card .ico {
+    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+    background: rgba(45,212,167,.1); border: 1px solid rgba(45,212,167,.22); margin-bottom: 16px;
+  }
+  .card .ico svg { width: 21px; height: 21px; stroke: var(--accent); }
+  .card h3 { font-size: 17px; letter-spacing: -0.01em; margin-bottom: 7px; }
+  .card p { color: var(--text-dim); font-size: 14.5px; }
+  .card p code, .sec-sub code { font-family: var(--mono); font-size: .92em; color: var(--accent); background: rgba(45,212,167,.08); padding: 1px 6px; border-radius: 5px; }
+
+  /* ---------- architecture pipeline ---------- */
+  .pipe { display: flex; flex-direction: column; gap: 0; margin-top: 44px; align-items: center; }
+  .pipe-row {
+    width: 100%; max-width: 760px;
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 22px; display: flex; align-items: center; gap: 16px;
+  }
+  .pipe-row .n { font-family: var(--mono); color: var(--accent); font-size: 13px; min-width: 28px; }
+  .pipe-row .body { flex: 1; }
+  .pipe-row .body strong { font-size: 15.5px; }
+  .pipe-row .body span { display: block; color: var(--text-dim); font-size: 13.5px; margin-top: 3px; }
+  .pipe-row .tag { font-family: var(--mono); font-size: 11px; padding: 4px 9px; border-radius: 6px; white-space: nowrap; }
+  .pipe-arrow { color: var(--text-faint); height: 26px; display: grid; place-items: center; }
+  .pipe-arrow svg { width: 16px; height: 16px; }
+  .t-data { color: var(--down); background: rgba(77,159,255,.1); border: 1px solid rgba(77,159,255,.22); }
+  .t-llm  { color: #c79bff; background: rgba(199,155,255,.1); border: 1px solid rgba(199,155,255,.22); }
+  .t-gate { color: var(--accent); background: rgba(45,212,167,.1); border: 1px solid rgba(45,212,167,.22); }
+  .t-exec { color: var(--warn); background: rgba(255,180,84,.1); border: 1px solid rgba(255,180,84,.22); }
+
+  /* ---------- terminal ---------- */
+  .term {
+    margin-top: 44px; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--line); background: #070a0f;
+    box-shadow: 0 24px 60px -24px rgba(0,0,0,.7);
+  }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 11px 16px; background: var(--bg-elev); border-bottom: 1px solid var(--line); }
+  .term-bar .d { width: 11px; height: 11px; border-radius: 50%; }
+  .term-bar .d.r { background: #ff5f57; } .term-bar .d.y { background: #febc2e; } .term-bar .d.g { background: #28c840; }
+  .term-bar .ttl { margin-left: 10px; font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+  .term pre {
+    font-family: var(--mono); font-size: 13px; line-height: 1.75; color: #c7d2de;
+    padding: 22px; overflow-x: auto; white-space: pre;
+  }
+  .term .c-cmt { color: var(--text-faint); }
+  .term .c-tk  { color: #fff; font-weight: 600; }
+  .term .c-up  { color: var(--up); }
+  .term .c-dn  { color: var(--down); }
+  .term .c-ok  { color: var(--accent); }
+  .term .c-no  { color: var(--warn); }
+  .term .c-blk { color: var(--up); font-weight: 600; }
+
+  /* ---------- table ---------- */
+  .tbl-wrap { margin-top: 44px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  thead th { text-align: left; padding: 15px 20px; background: var(--bg-elev-2); color: var(--text-dim); font-weight: 600; font-size: 13px; letter-spacing: .02em; }
+  tbody td { padding: 15px 20px; border-top: 1px solid var(--line-soft); color: var(--text-dim); vertical-align: top; }
+  tbody tr:hover { background: var(--bg-elev); }
+  td .prov { font-family: var(--mono); color: var(--text); font-size: 13.5px; }
+  .pill { font-size: 11.5px; font-family: var(--mono); padding: 3px 9px; border-radius: 100px; white-space: nowrap; }
+  .pill-free { color: var(--accent); background: rgba(45,212,167,.1); border: 1px solid rgba(45,212,167,.25); }
+  .pill-key  { color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--line); }
+
+  /* ---------- desktop tabs ---------- */
+  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 44px; }
+  @media (max-width: 900px) { .tabs { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 540px) { .tabs { grid-template-columns: 1fr; } }
+  .tab { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .tab .lbl { font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: .06em; }
+  .tab h4 { font-size: 16px; margin: 8px 0 8px; }
+  .tab p { color: var(--text-dim); font-size: 13.5px; }
+
+  /* ---------- safety stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 44px; }
+  @media (max-width: 760px) { .stats { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 460px) { .stats { grid-template-columns: 1fr; } }
+  .stat { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .stat .v { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .v small { font-size: 16px; color: var(--text-faint); }
+  .stat .k { font-family: var(--mono); font-size: 12px; color: var(--text-faint); margin-top: 6px; }
+  .stat .d { color: var(--text-dim); font-size: 13.5px; margin-top: 8px; }
+
+  /* ---------- quickstart ---------- */
+  .qs { margin-top: 44px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; }
+  @media (max-width: 820px) { .qs { grid-template-columns: 1fr; } }
+  .code {
+    background: #070a0f; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  }
+  .code pre { font-family: var(--mono); font-size: 13px; line-height: 1.8; color: #c7d2de; padding: 22px; overflow-x: auto; }
+  .code .c-cmt { color: var(--text-faint); }
+  .code .c-cmd { color: var(--accent); }
+  .qs-notes { display: flex; flex-direction: column; gap: 14px; }
+  .qs-note { background: var(--bg-elev); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px; }
+  .qs-note strong { font-size: 14.5px; }
+  .qs-note p { color: var(--text-dim); font-size: 13.5px; margin-top: 4px; }
+
+  /* ---------- disclaimer ---------- */
+  .disc {
+    margin-top: 20px; background: rgba(255,180,84,.06);
+    border: 1px solid rgba(255,180,84,.25); border-radius: var(--radius); padding: 24px 26px;
+  }
+  .disc h3 { color: var(--warn); font-size: 16px; display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .disc p { color: var(--text-dim); font-size: 14px; }
+  .disc a { color: var(--warn); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid var(--line-soft); padding: 54px 0 64px; }
+  .foot-grid { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px; }
+  .foot-brand { max-width: 34ch; }
+  .foot-brand p { color: var(--text-dim); font-size: 14px; margin-top: 12px; }
+  .foot-cols { display: flex; gap: 56px; flex-wrap: wrap; }
+  .foot-col h5 { font-size: 12px; color: var(--text-faint); font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 14px; }
+  .foot-col a { display: block; color: var(--text-dim); font-size: 14px; margin-bottom: 9px; transition: color .18s; }
+  .foot-col a:hover { color: var(--accent); }
+  .foot-bottom { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: var(--text-faint); font-size: 13px; }
+
+  /* ---------- reveal ---------- */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<!-- ============ NAV ============ -->
+<nav>
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#11161f" stroke="#1f2733"/><path d="M22 64 L40 46 L54 58 L78 30" fill="none" stroke="#2dd4a7" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      kr-ai-trader
+    </a>
+    <div class="nav-links">
+      <a href="#principles">원칙</a>
+      <a href="#architecture">아키텍처</a>
+      <a href="#backends">LLM 백엔드</a>
+      <a href="#desktop">데스크톱 앱</a>
+      <a href="#start">시작하기</a>
+      <a class="nav-gh" href="https://github.com/cskwork/kr-ai-trader" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header id="top">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span> PAPER-TRADING DEFAULT · KIS OPEN API</span>
+    <h1>LLM은 <span class="grad">분석가</span>,<br/>코드가 <span class="grad">리스크매니저</span>.</h1>
+    <p class="lede">
+      한국 리테일 투자자를 위한 <b>LLM 기반 자동매매 봇 템플릿</b>.
+      LLM은 매매 <b>제안</b>만 하고, 실제 주문은 결정론 리스크 게이트가 결정합니다.
+      모의투자가 디폴트, 멀티 LLM 백엔드, Tauri 데스크톱 관측 UI 포함.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/cskwork/kr-ai-trader" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+        저장소 보기
+      </a>
+      <a class="btn btn-ghost" href="#start">
+        시작하기
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+    <div class="badges">
+      <span class="badge"><span class="k">●</span> 모의투자 디폴트</span>
+      <span class="badge"><span class="k">●</span> 결정론 리스크 게이트</span>
+      <span class="badge"><span class="k">●</span> 멀티 LLM 백엔드 5종</span>
+      <span class="badge"><span class="k">●</span> 멱등 주문 + reconciliation</span>
+      <span class="badge"><span class="k">●</span> MIT License</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ PRINCIPLES ============ -->
+<section id="principles">
+  <div class="wrap">
+    <span class="sec-tag reveal">// core principles</span>
+    <h2 class="sec-title reveal">안전을 코드로 강제하는 4가지 핵심 원칙</h2>
+    <p class="sec-sub reveal">LLM의 환각·편향을 결정론 게이트가 막습니다. 자율성은 분석에, 통제는 코드에.</p>
+    <div class="grid grid-4">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 7.7 8 10 4.6-2.3 8-5 8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>LLM은 분석가, 코드가 리스크매니저</h3>
+        <p>LLM은 매매 <em>제안</em>만 생성합니다. 실제 주문 체결 여부는 결정론 리스크 게이트가 결정합니다.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3>모의투자가 디폴트</h3>
+        <p>실계좌 전환은 환경변수 <code>KIS_LIVE=1</code> 을 명시해야만 가능합니다. 기본값은 항상 페이퍼 트레이딩.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2.5"/></svg></div>
+        <h3>티커 화이트리스트</h3>
+        <p>KOSPI200 화이트리스트 외 종목은 게이트에서 거부. LLM이 존재하지 않는 종목을 주문하는 환각을 차단합니다.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 4v5h-5"/></svg></div>
+        <h3>멱등 주문 ID + reconciliation</h3>
+        <p>멱등 <code>client_order_id</code> 와 체결 대사로 중복 주문·유실을 방지합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section id="architecture">
+  <div class="wrap">
+    <span class="sec-tag reveal">// pipeline</span>
+    <h2 class="sec-title reveal">데이터 → 멀티에이전트 → 리스크 게이트 → 체결</h2>
+    <p class="sec-sub reveal">매 사이클은 동일한 결정론 경로를 따릅니다. 각 단계의 사유는 일별 마크다운 저널에 영구 기록됩니다.</p>
+    <div class="pipe">
+      <div class="pipe-row reveal">
+        <span class="n">01</span>
+        <div class="body"><strong>데이터 수집</strong><span>KIS WebSocket · OpenBB · DART · 뉴스 → <code style="font-family:var(--mono);color:var(--down)">compute_features</code> (RSI14 / 모멘텀)</span></div>
+        <span class="tag t-data">DATA</span>
+      </div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+      <div class="pipe-row reveal">
+        <span class="n">02</span>
+        <div class="body"><strong>멀티에이전트 토론</strong><span>Analyst(Bull) · Critic(Bear) · RiskOfficer · Moderator → structured JSON {ticker, side, conviction, thesis, risks}</span></div>
+        <span class="tag t-llm">LLM</span>
+      </div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+      <div class="pipe-row reveal">
+        <span class="n">03</span>
+        <div class="body"><strong>결정론 리스크 게이트</strong><span>화이트리스트 · 포지션 한도 · 드로다운 · 서킷브레이커 · 공매도 차단</span></div>
+        <span class="tag t-gate">GATE</span>
+      </div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+      <div class="pipe-row reveal">
+        <span class="n">04</span>
+        <div class="body"><strong>Broker + Journal</strong><span>KIS 모의/실 또는 PaperBroker → 일별 마크다운 저널 + Slack/Telegram 알람</span></div>
+        <span class="tag t-exec">EXEC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE CYCLE ============ -->
+<section id="validation">
+  <div class="wrap">
+    <span class="sec-tag reveal">// real-market full cycle</span>
+    <h2 class="sec-title reveal">실데이터 풀사이클, 한 줄로 검증</h2>
+    <p class="sec-sub reveal"><code>make smoke-llm &amp;&amp; make paper</code> — pykrx OHLCV부터 저널 기록까지 실제 체인이 돕니다.</p>
+    <div class="term reveal">
+      <div class="term-bar">
+        <span class="d r"></span><span class="d y"></span><span class="d g"></span>
+        <span class="ttl">make paper · 2026-05-18 KRX 종가 검증</span>
+      </div>
+<pre><span class="c-cmt"># pykrx OHLCV → compute_features → Bull+Bear+RiskOfficer → RiskGate → PaperBroker → Journal</span>
+
+<span class="c-tk">삼성전자  (005930)</span>   RSI <span class="c-up">70.85</span>  20d <span class="c-up">+29%</span>  → Risk Officer <span class="c-no">no_action</span>
+<span class="c-tk">SK하이닉스 (000660)</span>  RSI <span class="c-up">79.43</span>  20d <span class="c-up">+59%</span>  → LLM <span class="c-no">sell</span> 제안 (conv 0.72)
+                                        → RiskGate <span class="c-blk">차단 (short-selling blocked)</span>
+<span class="c-tk">NAVER    (035420)</span>   RSI <span class="c-dn">39.06</span>  20d <span class="c-dn">-8%</span>   → 모더레이터 <span class="c-no">no_action</span>
+
+<span class="c-ok">✓</span> 모든 의사결정의 thesis · risks · 거부 사유가 journal/2026-05-18.md 에 기록됨</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LLM BACKENDS ============ -->
+<section id="backends">
+  <div class="wrap">
+    <span class="sec-tag reveal">// pluggable llm</span>
+    <h2 class="sec-title reveal">멀티 LLM 백엔드 — <code>.env</code> 한 줄로 전환</h2>
+    <p class="sec-sub reveal">API 키가 필요 없는 CLI 백엔드부터 로컬 Ollama까지. <code>LLM_PROVIDER</code> 값만 바꾸면 됩니다.</p>
+    <div class="tbl-wrap reveal">
+      <table>
+        <thead><tr><th>Provider</th><th>인증</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td><span class="prov">anthropic_api</span></td><td><span class="pill pill-key">ANTHROPIC_API_KEY</span></td><td>Claude Sonnet/Opus, tool_use로 structured output</td></tr>
+          <tr><td><span class="prov">openai_api</span></td><td><span class="pill pill-key">OPENAI_API_KEY</span></td><td>GPT-5 계열, <code>response_format=json_schema</code></td></tr>
+          <tr><td><span class="prov">claude_code_cli</span></td><td><span class="pill pill-free">API 키 불필요</span></td><td><code>claude -p --json-schema</code> 가 envelope <code>structured_output</code> 으로 검증 JSON 반환</td></tr>
+          <tr><td><span class="prov">codex_cli</span></td><td><span class="pill pill-free">API 키 불필요</span></td><td><code>codex</code> CLI 로그인 세션 활용</td></tr>
+          <tr><td><span class="prov">ollama</span></td><td><span class="pill pill-key">로컬</span></td><td><code>localhost:11434</code> · <code>llama3.1</code> / <code>qwen2.5</code> 등</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DESKTOP ============ -->
+<section id="desktop">
+  <div class="wrap">
+    <span class="sec-tag reveal">// tauri desktop</span>
+    <h2 class="sec-title reveal">데스크톱 관측 UI · 4-뷰</h2>
+    <p class="sec-sub reveal">Vite + React + TypeScript + Tauri 2.x. 백엔드(127.0.0.1:8765)에 HTTP + WebSocket 으로 연결.</p>
+    <div class="tabs">
+      <div class="tab reveal"><div class="lbl">TAB 01</div><h4>Dashboard</h4><p>LLM provider/모델, 유니버스 크기, 리스크 파라미터, HALT 상태, 포지션 테이블, 현재 equity/cash.</p></div>
+      <div class="tab reveal"><div class="lbl">TAB 02</div><h4>Run cycle</h4><p>티커 입력 → WebSocket 스트림. settings_loaded → features_computed → proposal_built → risk_gate_decision → order_placed 까지 단계별 카드.</p></div>
+      <div class="tab reveal"><div class="lbl">TAB 03</div><h4>Journal</h4><p>오늘 자 <code>journal/YYYY-MM-DD.md</code> 렌더링. 모든 매매 의사결정의 thesis/risks/거부 사유 보존.</p></div>
+      <div class="tab reveal"><div class="lbl">TAB 04</div><h4>Observability</h4><p>3초 주기 equity 샘플링 sparkline + 백엔드 상태 메트릭.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SAFETY ============ -->
+<section id="safety">
+  <div class="wrap">
+    <span class="sec-tag reveal">// safe defaults</span>
+    <h2 class="sec-title reveal">보수적인 안전 기본값</h2>
+    <p class="sec-sub reveal"><code>.env</code> 로 조정 가능. 변경 시 백테스트 재실행을 권장합니다.</p>
+    <div class="stats">
+      <div class="stat reveal"><div class="v">3<small>%</small></div><div class="k">MAX_POSITION_PCT</div><div class="d">종목당 최대 비중 3%</div></div>
+      <div class="stat reveal"><div class="v">30<small>%</small></div><div class="k">MAX_SECTOR_PCT</div><div class="d">섹터당 최대 비중 30%</div></div>
+      <div class="stat reveal"><div class="v">−2<small>%</small></div><div class="k">DAILY_LOSS_HALT_PCT</div><div class="d">일일 −2% 도달 시 신규진입 중단</div></div>
+      <div class="stat reveal"><div class="v">−4<small>%</small></div><div class="k">DAILY_LOSS_FLATTEN_PCT</div><div class="d">일일 −4% 도달 시 전량청산</div></div>
+      <div class="stat reveal"><div class="v">0<small>×</small></div><div class="k">LEVERAGE</div><div class="d">신용·미수 금지</div></div>
+      <div class="stat reveal"><div class="v">7<small>%</small></div><div class="k">HARD_STOP_PCT</div><div class="d">하드 손절 라인</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUICKSTART ============ -->
+<section id="start">
+  <div class="wrap">
+    <span class="sec-tag reveal">// get started</span>
+    <h2 class="sec-title reveal">시작하기</h2>
+    <p class="sec-sub reveal">클론 → KIS 모의계좌 키 발급 → LLM 백엔드 선택 → 스모크 테스트 → 페이퍼 루프.</p>
+    <div class="qs">
+      <div class="code reveal">
+<pre><span class="c-cmt"># 1. 클론 후 설치</span>
+<span class="c-cmd">git clone</span> https://github.com/cskwork/kr-ai-trader
+<span class="c-cmd">cd</span> kr-ai-trader
+<span class="c-cmd">python</span> -m venv .venv &amp;&amp; <span class="c-cmd">source</span> .venv/bin/activate
+<span class="c-cmd">pip install</span> -e ".[dev]" &amp;&amp; <span class="c-cmd">pre-commit install</span>
+
+<span class="c-cmt"># 2. KIS 모의계좌 키 입력 (apiportal.koreainvestment.com)</span>
+<span class="c-cmd">cp</span> .env.example .env
+
+<span class="c-cmt"># 3. LLM 백엔드 — API 키 0원 권장</span>
+<span class="c-cmt">#   LLM_PROVIDER=claude_code_cli</span>
+
+<span class="c-cmt"># 4. 스모크 테스트 + 페이퍼 루프</span>
+<span class="c-cmd">make</span> smoke-llm
+<span class="c-cmd">make</span> smoke-kis
+<span class="c-cmd">make</span> paper
+
+<span class="c-cmt"># 5. (충분한 검증 후) 실계좌</span>
+KIS_LIVE=1 <span class="c-cmd">make</span> live</pre>
+      </div>
+      <div class="qs-notes">
+        <div class="qs-note reveal"><strong>KIS Open API 모의투자로 시작</strong><p>한국투자증권 apiportal에서 모의투자 계좌 키를 발급받아 <code>.env</code> 에 입력하세요. 실계좌 전환은 명시적 플래그가 필요합니다.</p></div>
+        <div class="qs-note reveal"><strong>백테스트</strong><p><code>make backtest UNIVERSE=kospi200 FROM=2024-01-01 TO=2025-12-31</code> — vectorbt 래퍼로 파라미터 변경 후 재검증.</p></div>
+        <div class="qs-note reveal"><strong>데스크톱 앱</strong><p><code>make api</code> 로 백엔드를, 다른 터미널에서 <code>make desktop</code> 으로 Tauri 관측 UI를 실행합니다.</p></div>
+      </div>
+    </div>
+
+    <div class="disc reveal">
+      <h3>⚠ 투자 위험 고지 (DISCLAIMER)</h3>
+      <p>이 코드는 <strong>교육·연구 목적</strong>입니다. 실제 자금 손실의 책임은 전적으로 사용자에게 있습니다. LLM의 매매 제안은 환각·편향·시점지연 등의 한계가 있으며, 본 템플릿의 어떤 출력도 투자자문에 해당하지 않습니다. 자세한 내용은 <a href="https://github.com/cskwork/kr-ai-trader/blob/main/DISCLAIMER.md" target="_blank" rel="noopener">DISCLAIMER.md</a> 를 참고하세요.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="#top">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#11161f" stroke="#1f2733"/><path d="M22 64 L40 46 L54 58 L78 30" fill="none" stroke="#2dd4a7" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          kr-ai-trader
+        </a>
+        <p>한국 리테일 투자자를 위한 LLM 기반 자동매매 봇 템플릿. 모의투자 디폴트 · 결정론 리스크 게이트 · 멀티 LLM 백엔드.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h5>Project</h5>
+          <a href="https://github.com/cskwork/kr-ai-trader" target="_blank" rel="noopener">GitHub 저장소</a>
+          <a href="https://github.com/cskwork/kr-ai-trader/blob/main/README.md" target="_blank" rel="noopener">README</a>
+          <a href="https://github.com/cskwork/kr-ai-trader/blob/main/docs/principles-mapping.md" target="_blank" rel="noopener">원칙 → 코드 매핑</a>
+          <a href="https://github.com/cskwork/kr-ai-trader/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        </div>
+        <div class="foot-col">
+          <h5>Investment Rules</h5>
+          <a href="https://github.com/cskwork/investment-agent-rules" target="_blank" rel="noopener">investment-agent-rules</a>
+          <a href="https://github.com/cskwork/kr-ai-trader/blob/main/DISCLAIMER.md" target="_blank" rel="noopener">DISCLAIMER</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 cskwork · MIT License · 교육·연구 목적</span>
+      <span>LLM은 분석가, 코드가 리스크매니저.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    }
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    el.style.transitionDelay = (Math.min(i % 4, 3) * 60) + 'ms';
+    io.observe(el);
+  });
+</script>
+</body>
+</html>
