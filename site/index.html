@@ -155,6 +155,9 @@
   @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 600px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
 
+  .minihead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; margin: 40px 0 18px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .minihead span { font-family: var(--mono); font-size: 12px; color: var(--text-faint); font-weight: 400; letter-spacing: 0; }
+
   .card {
     background: var(--bg-elev); border: 1px solid var(--line);
     border-radius: var(--radius); padding: 24px;
@@ -296,6 +299,7 @@
     <div class="nav-links">
       <a href="#principles">원칙</a>
       <a href="#architecture">아키텍처</a>
+      <a href="#research">리서치</a>
       <a href="#backends">LLM 백엔드</a>
       <a href="#desktop">데스크톱 앱</a>
       <a href="#start">시작하기</a>
@@ -331,6 +335,7 @@
       <span class="badge"><span class="k">●</span> 모의투자 디폴트</span>
       <span class="badge"><span class="k">●</span> 결정론 리스크 게이트</span>
       <span class="badge"><span class="k">●</span> 멀티 LLM 백엔드 5종</span>
+      <span class="badge"><span class="k">●</span> 펀더멘털 + 공시 + 뉴스 리서치</span>
       <span class="badge"><span class="k">●</span> 멱등 주문 + reconciliation</span>
       <span class="badge"><span class="k">●</span> MIT License</span>
     </div>
@@ -377,7 +382,7 @@
     <div class="pipe">
       <div class="pipe-row reveal">
         <span class="n">01</span>
-        <div class="body"><strong>데이터 수집</strong><span>KIS WebSocket · OpenBB · DART · 뉴스 → <code style="font-family:var(--mono);color:var(--down)">compute_features</code> (RSI14 / 모멘텀)</span></div>
+        <div class="body"><strong>리서치 컨텍스트 집계</strong><span>pykrx OHLCV(기술지표 RSI14/모멘텀) + 펀더멘털(PER/PBR/EPS) + DART 공시 + 뉴스 + 섹터 → <code style="font-family:var(--mono);color:var(--down)">build_research_context</code> 가 JSON 으로 묶어 LLM 에 전달</span></div>
         <span class="tag t-data">DATA</span>
       </div>
       <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
@@ -389,14 +394,66 @@
       <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
       <div class="pipe-row reveal">
         <span class="n">03</span>
-        <div class="body"><strong>결정론 리스크 게이트</strong><span>화이트리스트 · 포지션 한도 · 드로다운 · 서킷브레이커 · 공매도 차단</span></div>
+        <div class="body"><strong>결정론 리스크 게이트</strong><span>화이트리스트 · 포지션 한도 · 섹터 한도 · 일일 PnL 서킷브레이커(<code style="font-family:var(--mono);color:var(--accent)">DailyPnLTracker</code> 구동) · 공매도 차단</span></div>
         <span class="tag t-gate">GATE</span>
       </div>
       <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
       <div class="pipe-row reveal">
         <span class="n">04</span>
-        <div class="body"><strong>Broker + Journal</strong><span>KIS 모의/실 또는 PaperBroker → 일별 마크다운 저널 + Slack/Telegram 알람</span></div>
+        <div class="body"><strong>Broker + Reconciliation + Journal</strong><span>KIS 모의/실 또는 PaperBroker ↔ reconciliation(잔고↔ledger 대조, 불일치 시 HALT) → 일별 마크다운 저널 + Slack/Telegram 알람</span></div>
         <span class="tag t-exec">EXEC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESEARCH & OPS ============ -->
+<section id="research">
+  <div class="wrap">
+    <span class="sec-tag reveal">// research &amp; ops layer</span>
+    <h2 class="sec-title reveal">리서치 레이어 + 운영 안전장치</h2>
+    <p class="sec-sub reveal">LLM 이 기술적 지표만 보던 구조를 보강했습니다. 매 사이클 <code>build_research_context</code> 가 펀더멘털·공시·뉴스·섹터를 함께 공급해 <b>안전마진(Margin of Safety)</b> 판단 근거를 주고, 일일 PnL 서킷브레이커·알람·잔고 대조가 모의(paper) 운영을 지킵니다.</p>
+
+    <div class="minihead reveal">데이터 / 리서치 <span>data/research.py · build_research_context</span></div>
+    <div class="grid grid-4">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-9M20 16v-3"/></svg></div>
+        <h3>펀더멘털</h3>
+        <p>pykrx <code>get_market_fundamental</code> → PER / PBR / EPS / BPS / 배당수익률 / DPS. parquet 캐시, 결측은 안전하게 None 강등.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 14h6M9 17h4"/></svg></div>
+        <h3>DART 공시</h3>
+        <p>OpenDART REST. corpCode 1회 캐시 후 최근 <code>DART_LOOKBACK_DAYS</code> 일 공시. <code>DART_API_KEY</code> 미설정 시 자동 off.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a2 2 0 0 1 2 2v10a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg></div>
+        <h3>뉴스 헤드라인</h3>
+        <p>Google News RSS(ko-KR/en-US), 종목당 <code>NEWS_LOOKBACK_ITEMS</code> 건. 헤드라인·출처·발행시간. 오류 시 빈 리스트.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <h3>섹터 매핑</h3>
+        <p>KRX 업종지수 구성종목 → 티커별 섹터. <code>RiskGate.sector_map</code> 으로 주입돼 섹터 한도를 실제 활성화.</p>
+      </div>
+    </div>
+
+    <div class="minihead reveal" style="margin-top:40px">운영 안전장치 <span>ops/ · execution/reconciliation.py</span></div>
+    <div class="grid grid-3">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>일일 PnL 서킷브레이커</h3>
+        <p><code>DailyPnLTracker</code> 가 KST 장 시작 자본을 영속화하고 매 사이클 PnL% 를 계산. 이 값이 halt(신규중단)·flatten(전량청산) 임계치를 <em>실제로</em> 구동합니다 (이전엔 스텁).</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <h3>알람</h3>
+        <p><code>send_alert(level, message)</code> 로 Slack + Telegram 동시 전송. 주문 거부·서킷브레이커 발동 시 자동 호출, 채널 미설정/실패 시 graceful degrade.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a9 9 0 0 0-15-3L3 8M3 8V4M3 8h4"/><path d="M3 16a9 9 0 0 0 15 3l3-3M21 16v4M21 16h-4"/></svg></div>
+        <h3>Reconciliation</h3>
+        <p>브로커 잔고 ↔ 내부 ledger 대조(missing / extra / qty_mismatch). 불일치 시 HALT 파일 생성 + 알람 — 알람이 실패해도 HALT 는 반드시 떨어집니다.</p>
       </div>
     </div>
   </div>
