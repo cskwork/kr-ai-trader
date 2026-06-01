@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     universe: str = "kospi200"
     universe_file: Path | None = None
 
+    # 리서치 데이터 (펀더멘털/DART/뉴스)
+    dart_api_key: SecretStr | None = Field(
+        default=None,
+        description="OpenDART REST 인증키. 미설정 시 DART 공시 off(빈 리스트).",
+    )
+    dart_lookback_days: int = Field(default=14, ge=1, description="DART 최근 공시 조회 일수")
+    enable_dart: bool = Field(default=True, description="DART 공시 수집 토글")
+    news_lookback_items: int = Field(default=8, ge=1, description="종목당 뉴스 헤드라인 개수")
+    enable_news: bool = Field(default=True, description="뉴스 수집 활성화 토글")
+
     # 알람
     slack_webhook_url: SecretStr | None = None
     telegram_bot_token: SecretStr | None = None
@@ -81,6 +91,10 @@ class Settings(BaseSettings):
     # 운영 안전장치
     halt_file: Path = Path.home() / ".kr-ai-trader" / "HALT"
     reconciliation_interval_sec: int = 60
+    daily_pnl_file: Path = Field(
+        default=Path.home() / ".kr-ai-trader" / "daily_pnl.json",
+        description="DailyPnLTracker 가 장 시작 자본을 영속화하는 JSON 파일 경로",
+    )
 
     @model_validator(mode="after")
     def _validate_thresholds(self) -> Settings:

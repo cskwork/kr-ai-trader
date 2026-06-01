@@ -22,12 +22,22 @@ import structlog
 from kr_ai_trader.agents.moderator import Moderator
 from kr_ai_trader.broker.base import Quote
 from kr_ai_trader.broker.paper import PaperBroker
-from kr_ai_trader.config import get_settings
-from kr_ai_trader.data.prices import compute_features, summary_to_dict
+from kr_ai_trader.config import Settings, get_settings
+from kr_ai_trader.data.dart import disclosures_to_list
+from kr_ai_trader.data.fundamentals import fundamentals_to_dict
+from kr_ai_trader.data.news import news_to_list
+from kr_ai_trader.data.prices import summary_to_dict
+from kr_ai_trader.data.research import (
+    build_research_context,
+    research_to_context_string,
+)
+from kr_ai_trader.data.sector_map import build_sector_map
 from kr_ai_trader.data.universe import load_universe
 from kr_ai_trader.execution.executor import Executor
 from kr_ai_trader.journal.recorder import JournalRecorder
 from kr_ai_trader.llm.factory import get_llm
+from kr_ai_trader.ops.alerts import send_alert
+from kr_ai_trader.ops.daily_pnl import DailyPnLTracker
 from kr_ai_trader.risk.gate import RiskGate
 
 log = structlog.get_logger("run_paper")
@@ -40,14 +50,35 @@ DEFAULT_PICKS = [
 ]
 
 
+async def _alert(settings: Settings, level: str, message: str) -> None:
+    """자격증명이 있을 때만 best-effort 알람. 실패해도 사이클은 계속."""
+    slack = settings.slack_webhook_url.get_secret_value() if settings.slack_webhook_url else None
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else None
+    if not slack and not (token and settings.telegram_chat_id):
+        return
+    try:
+        await send_alert(
+            level,  # type: ignore[arg-type]
+            message,
+            slack_webhook=slack,
+            telegram_token=token,
+            telegram_chat_id=settings.telegram_chat_id,
+        )
+    except Exception as exc:  # 알람 실패가 사이클을 멈추면 안 됨.
+        log.warning("alert.failed", error=str(exc))
+
+
 async def run_one_cycle(*, top_n: int, initial_cash: float) -> dict:
     settings = get_settings()
     universe = load_universe(settings.universe, settings.universe_file)
     llm = get_llm(settings)
 
     broker = PaperBroker(initial_cash=initial_cash)
-    risk_gate = RiskGate(settings=settings, universe=universe)
+    sector_map = build_sector_map(universe)
+    risk_gate = RiskGate(settings=settings, universe=universe, sector_map=sector_map)
     journal = JournalRecorder()
+    pnl_tracker = DailyPnLTracker(path=settings.daily_pnl_file)
+    pnl_tracker.start_of_day(initial_cash)
     executor = Executor(
         broker=broker,
         risk_gate=risk_gate,
@@ -74,11 +105,12 @@ async def run_one_cycle(*, top_n: int, initial_cash: float) -> dict:
 
     for ticker in picks:
         try:
-            features = compute_features(ticker)
+            research = build_research_context(ticker, settings=settings)
         except Exception as exc:
-            log.warning("features.failed", ticker=ticker, error=str(exc))
+            log.warning("research.failed", ticker=ticker, error=str(exc))
             continue
 
+        features = research.price
         broker.set_quote(
             Quote(
                 ticker=ticker,
@@ -87,12 +119,25 @@ async def run_one_cycle(*, top_n: int, initial_cash: float) -> dict:
             )
         )
 
-        market_context = json.dumps(summary_to_dict(features), ensure_ascii=False, indent=2)
+        research_fields = {
+            "company_name": research.company_name,
+            "sector": research.sector,
+            "fundamentals": fundamentals_to_dict(research.fundamentals),
+            "disclosures": disclosures_to_list(research.disclosures),
+            "news": news_to_list(research.news),
+        }
+
+        market_context = research_to_context_string(research)
         proposal = await moderator.decide(ticker=ticker, market_context=market_context)
 
         if proposal is None:
             cycle_summary["decisions"].append(
-                {"ticker": ticker, "result": "no_action", "features": summary_to_dict(features)}
+                {
+                    "ticker": ticker,
+                    "result": "no_action",
+                    "features": summary_to_dict(features),
+                    **research_fields,
+                }
             )
             log.info("moderator.no_action", ticker=ticker)
             continue
@@ -106,12 +151,25 @@ async def run_one_cycle(*, top_n: int, initial_cash: float) -> dict:
                 "size_pct": proposal.size_pct,
                 "thesis": proposal.thesis,
                 "features": summary_to_dict(features),
+                **research_fields,
             }
         )
 
-        order = await executor.execute(proposal)
+        # 서킷브레이커 입력값: 현재 자본 대비 당일 손익률.
+        equity = await broker.get_cash() + sum(
+            p.market_value for p in await broker.get_positions()
+        )
+        day_pnl = pnl_tracker.compute(equity)
+
+        order = await executor.execute(proposal, day_pnl_pct=day_pnl.pnl_pct)
         if order is None:
             cycle_summary["rejections"].append({"ticker": ticker, "reason": "risk_gate"})
+            # 서킷브레이커/청산 거부는 critical 알람으로 통지.
+            await _alert(
+                settings,
+                "critical",
+                f"{ticker} 주문 거부 (day_pnl={day_pnl.pnl_pct:.2f}%)",
+            )
         else:
             cycle_summary["orders"].append(
                 {
@@ -122,6 +180,12 @@ async def run_one_cycle(*, top_n: int, initial_cash: float) -> dict:
                     "status": order.status,
                     "client_order_id": order.client_order_id,
                 }
+            )
+            await _alert(
+                settings,
+                "info",
+                f"{ticker} {order.side.value} {order.filled_quantity}주 체결 "
+                f"@ {order.filled_avg_price}",
             )
 
     cycle_summary["ended_at"] = datetime.now(timezone.utc).isoformat()

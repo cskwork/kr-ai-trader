@@ -32,17 +32,21 @@
   - `compute_features(ticker)` → `PriceSummary` (RSI14, SMA5/20, pct_change_1/5/20d) ✓
   - 캐싱: `cache/prices/{ticker}.parquet` ✓
   - 미구현: `subscribe_realtime(tickers, on_tick)` (KIS WebSocket, 라이브용)
-- [ ] **1.2** `data/dart.py` — DART OpenAPI 공시 수집
-  - https://opendart.fss.or.kr/ API 키 발급 (`DART_API_KEY`)
-  - 최근 N일 공시 → 종목별 dict
-  - `.env.example` 에 `DART_API_KEY` 추가
-- [ ] **1.3** `data/news.py` — 뉴스 수집
-  - 1차: 네이버 뉴스 RSS, 연합뉴스 RSS
-  - 2차(선택): 한경 컨센서스, OpenBB
-  - 종목별 최근 N건 본문 + 발행시간
-- [ ] **1.4** `data/sector_map.py` — 티커→섹터 매핑 (KRX 섹터 분류)
-  - `RiskGate.sector_map` 으로 주입 → 섹터 한도 활성화
+- [x] **1.2** `data/dart.py` — DART OpenAPI 공시 수집
+  - https://opendart.fss.or.kr/ API 키 발급 (`DART_API_KEY`) ✓
+  - 최근 N일 공시 → 종목별 `Disclosure` 리스트, corpCode 매핑 캐시 ✓
+  - `.env.example` 에 `DART_API_KEY` 추가 ✓
+  - 키 미설정/네트워크 실패 시 빈 리스트로 graceful degrade ✓
+- [x] **1.3** `data/news.py` — 뉴스 수집
+  - Google News RSS (종목명 쿼리, ko-KR/en-US 지원) ✓
+  - 종목별 최근 N건 헤드라인 + 발행시간 + 출처 ✓
+  - 미구현(선택): 네이버/연합/한경 컨센서스, 본문 수집
+- [x] **1.4** `data/sector_map.py` — 티커→섹터 매핑 (KRX 업종 분류)
+  - pykrx 업종지수 구성종목 → 섹터, 캐시 + 정적 fallback ✓
+  - `RiskGate.sector_map` 으로 주입 → 섹터 한도 활성화 ✓
 - [x] **1.5** `data/calendar.py` — KRX 영업일/거래시간/동시호가/이전영업일. pykrx fallback 포함
+- [x] **1.6** `data/fundamentals.py` — 네이버 금융(로그인 불필요) 펀더멘털 우선 (PER/PBR/EPS/BPS/배당수익률/DPS), pykrx(KRX 로그인 필요) fallback + parquet 캐시, 예외 시 None 강등. 라이브 검증 완료
+- [x] **1.7** `data/research.py` — 기술적+펀더멘털+DART+뉴스+섹터 집계(`build_research_context`) → LLM 컨텍스트 문자열(`research_to_context_string`)
 
 ## 2. 실행 루프 스크립트 (우선순위 1)
 
@@ -54,16 +58,16 @@
 - [x] **2.7** `scripts/demo_buy_then_sell.py` — 시드 매수 → LLM 매도 → 체결까지 단일 흐름 검증용
 - [ ] **2.4** `scripts/run_live.py` — `KIS_LIVE=1` 가드 + paper 와 동일 로직
 - [ ] **2.5** `scripts/run_backtest.py` — typer CLI, LLM 신호 사전 생성 후 vectorbt 호출
-- [ ] **2.6** `src/kr_ai_trader/execution/reconciliation.py` — 1분마다 KIS 잔고 ↔ 내부 ledger 비교, 불일치 시 알람+정지
+- [x] **2.6** `src/kr_ai_trader/execution/reconciliation.py` — 브로커 잔고 ↔ 내부 ledger 비교(`reconcile`/`reconcile_and_guard`), 불일치 시 HALT 파일 생성 + 알람. `RECONCILIATION_INTERVAL_SEC` 설정
 
 ## 3. 알람·운영 안전장치 (우선순위 2)
 
-- [ ] **3.1** `src/kr_ai_trader/ops/alerts.py` — Slack/Telegram 클라이언트
-  - `send_alert(level, message)` 통합 인터페이스
-  - 주문 체결, 거부, 서킷브레이커 발동 시 자동 전송
+- [x] **3.1** `src/kr_ai_trader/ops/alerts.py` — Slack/Telegram 클라이언트
+  - `send_alert(level, message)` 통합 인터페이스 (httpx, async) ✓
+  - 주문 거부, 서킷브레이커 발동 시 자동 전송. 채널 미설정/실패 시 graceful degrade ✓
 - [ ] **3.2** `src/kr_ai_trader/ops/halt.py` — HALT 파일 핸들러 + CLI (`kr-trader halt on/off`)
 - [ ] **3.3** 구조화 로그(structlog) → JSON 파일 + 콘솔 dual sink
-- [ ] **3.4** 일일 손실 추적 모듈 (start_of_day_equity 저장, 현재 PnL% 계산)
+- [x] **3.4** 일일 손실 추적 모듈 `src/kr_ai_trader/ops/daily_pnl.py` — `DailyPnLTracker` 가 KST 장 시작 자본 영속화 + 현재 PnL% 계산, `RiskGate` 서킷브레이커 구동
 
 ## 4. 테스트 (우선순위 1, 커밋 전 필수)
 
@@ -98,11 +102,12 @@
 
 ## 6. 문서화 (우선순위 2)
 
-- [ ] **6.1** `docs/architecture.md` — 시퀀스 다이어그램 (Mermaid)
+- [x] **6.1** `docs/architecture.md` — 시퀀스 다이어그램 (Mermaid)
 - [ ] **6.2** `docs/llm-providers.md` — 5종 백엔드 셋업 가이드 (Claude Code CLI 로그인, Codex CLI 로그인, Ollama 모델 다운로드)
 - [ ] **6.3** `docs/kr-regulation.md` — 자동매매 합법성, 일임투자 라이선스, 세금
 - [ ] **6.4** `docs/risk-tuning.md` — Half-Kelly, walk-forward, 백테 함정 (lookahead/survivorship)
 - [ ] **6.5** README 에 데모 GIF 또는 스크린샷
+- [x] **6.6** `docs/codebase.md` — 모듈별 개발자 지도 (목적 → 공개 API → 협력 모듈 → 커버 테스트)
 
 ## 7. 잔여 개선 (우선순위 3)
 

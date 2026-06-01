@@ -58,20 +58,37 @@ NAVER (035420)      RSI 39.06, 20d -8%  → 모더레이터 no_action
 ## 아키텍처
 
 ```
-[데이터: KIS WS / OpenBB / DART / 뉴스]
-              │
+[데이터: pykrx OHLCV → 기술적지표 + 펀더멘털(네이버 PER/PBR/EPS) + DART 공시 + 뉴스 헤드라인 + 섹터]
+              │  build_research_context → research_to_context_string (JSON)
               ▼
 [멀티에이전트: Analyst(Bull) / Critic(Bear) / RiskOfficer / Moderator]
               │  structured JSON {ticker, side, conviction, thesis, risks}
               ▼
-[결정론 리스크 게이트: 화이트리스트·포지션·드로다운·서킷브레이커]
-              │
+[결정론 리스크 게이트: 화이트리스트·포지션·섹터·드로다운·일일 PnL 서킷브레이커]
+              │  ← DailyPnLTracker.pnl_pct 가 halt/flatten 임계치 구동
               ▼
-[Broker: KIS 모의/실 또는 PaperBroker]
+[Broker: KIS 모의/실 또는 PaperBroker]  ←→ reconciliation (잔고 ↔ ledger 대조, 불일치 시 HALT)
               │
               ▼
 [Journal: 일별 마크다운 + Slack/Telegram 알람]
 ```
+
+### 데이터 / 리서치 레이어
+
+기존에는 LLM 이 기술적 지표(RSI/SMA/모멘텀)만 받아 **안전마진(Margin of Safety)** 원칙과 어긋났습니다. 이제 매 사이클이 `data/research.py` 의 `build_research_context` 로 다음을 모아 LLM 에 함께 전달합니다.
+
+- **펀더멘털** (`data/fundamentals.py`): 네이버 금융(로그인 불필요) 우선 → PER/PBR/EPS/BPS/배당수익률/DPS, pykrx(`get_market_fundamental_by_date`, KRX 로그인 필요) fallback
+- **DART 공시** (`data/dart.py`): OpenDART API, 최근 `DART_LOOKBACK_DAYS` 일 공시 (`DART_API_KEY` 필요, 미설정 시 자동 off)
+- **뉴스 헤드라인** (`data/news.py`): Google News RSS, 종목당 `NEWS_LOOKBACK_ITEMS` 건
+- **섹터** (`data/sector_map.py`): KRX 업종 매핑 → `RiskGate` 섹터 한도 + LLM 컨텍스트
+
+운영 안전장치도 추가되었습니다.
+
+- **일일 PnL → 서킷브레이커** (`ops/daily_pnl.py`): `DailyPnLTracker` 가 KST 장 시작 자본을 영속화하고 현재 PnL% 를 계산. 그 값이 `RiskGate` 의 `DAILY_LOSS_HALT_PCT`(신규매수 중단)·`DAILY_LOSS_FLATTEN_PCT`(전량청산) 임계치를 실제로 구동합니다(이전엔 스텁).
+- **알람** (`ops/alerts.py`): `send_alert(level, message)` 로 Slack/Telegram 동시 전송. 주문 거부·서킷브레이커 발동 시 자동 호출, 채널 미설정/실패 시 graceful degrade.
+- **reconciliation** (`execution/reconciliation.py`): 브로커 잔고 ↔ 내부 ledger 대조. 불일치 시 HALT 파일 생성 + 알람.
+
+관련 환경변수: `DART_API_KEY`, `DART_LOOKBACK_DAYS`, `ENABLE_DART`, `NEWS_LOOKBACK_ITEMS`, `ENABLE_NEWS`, `SLACK_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `RECONCILIATION_INTERVAL_SEC`, `DAILY_PNL_FILE` (전체 예시는 `.env.example`).
 
 ## LLM 백엔드
 
@@ -134,8 +151,9 @@ src/kr_ai_trader/
   broker/            # KIS + PaperBroker
   agents/            # Bull/Bear/RiskOfficer/Moderator
   risk/              # 결정론 리스크 게이트
-  execution/         # 멱등 주문 + reconciliation
-  data/              # 시세·유니버스
+  execution/         # 멱등 주문 + reconciliation (잔고↔ledger 대조)
+  data/              # 시세·유니버스 + research(펀더멘털/DART/뉴스/섹터 집계)
+  ops/               # 알람(Slack/Telegram) + 일일 PnL 추적
   backtest/          # vectorbt 래퍼
   journal/           # 일별 마크다운 저널
   cli.py             # 진입점
@@ -151,6 +169,12 @@ src/kr_ai_trader/
 - `HARD_STOP_PCT=7`
 
 `.env`로 조정 가능. 변경 시 백테스트 재실행 권장.
+
+## 문서
+
+- [docs/architecture.md](./docs/architecture.md) — 시스템 아키텍처: 데이터 수집 → 멀티에이전트 합의 → 결정론 리스크 게이트 → 브로커 실행 → 저널/관측 전체 사이클 (Mermaid 시퀀스 다이어그램)
+- [docs/codebase.md](./docs/codebase.md) — 코드베이스 레퍼런스: 패키지별 목적 → 공개 API 시그니처 → 협력 모듈 → 커버 테스트 개발자 지도
+- [docs/principles-mapping.md](./docs/principles-mapping.md) — 10대 투자원칙 → 코드 강제 지점 매핑 (4 enforced / 5 partial / 1 missing)
 
 ## 라이선스
 
